@@ -1,0 +1,306 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ───────────── ENUMS ─────────────
+
+enum Role {
+  ADMIN
+  SALESMAN
+  DELIVERY
+}
+
+enum ShopType {
+  RETAIL
+  WHOLESALE
+  CREDIT
+  CASH
+}
+
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  DISPATCHED
+  DELIVERED
+  CANCELLED
+}
+
+enum PaymentType {
+  CASH
+  CREDIT
+  BANK_TRANSFER
+  CHEQUE
+}
+
+enum DeliveryStatus {
+  PENDING
+  IN_TRANSIT
+  DELIVERED
+  FAILED
+}
+
+enum SubscriptionStatus {
+  TRIALING
+  ACTIVE
+  PAST_DUE
+  CANCELED
+  PAUSED
+}
+
+// ───────────── SAAS MODELS ─────────────
+
+model Organization {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  email     String   @unique
+  phone     String?
+  address   String?
+  logo      String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users        User[]
+  products     Product[]
+  shops        Shop[]
+  routes       Route[]
+  orders       Order[]
+  payments     Payment[]
+  subscription Subscription?
+
+  @@index([slug])
+}
+
+model Plan {
+  id              String   @id @default(cuid())
+  name            String   // Starter, Professional, Enterprise
+  slug            String   @unique
+  paddlePriceIdMonthly  String?
+  paddlePriceIdYearly   String?
+  priceMonthly    Decimal  @db.Decimal(10, 2)
+  priceYearly     Decimal  @db.Decimal(10, 2)
+  currency        String   @default("USD")
+  maxUsers        Int      @default(3)    // -1 = unlimited
+  maxRoutes       Int      @default(2)
+  maxProducts     Int      @default(50)
+  maxShops        Int      @default(100)
+  features        Json     @default("[]")
+  isActive        Boolean  @default(true)
+  isPopular       Boolean  @default(false)
+  sortOrder       Int      @default(0)
+  createdAt       DateTime @default(now())
+
+  subscriptions Subscription[]
+}
+
+model Subscription {
+  id                   String             @id @default(cuid())
+  organization         Organization       @relation(fields: [organizationId], references: [id])
+  organizationId       String             @unique
+  plan                 Plan               @relation(fields: [planId], references: [id])
+  planId               String
+  paddleSubscriptionId String?            @unique
+  paddleCustomerId     String?
+  paddleTransactionId  String?
+  status               SubscriptionStatus @default(TRIALING)
+  billingInterval      String             @default("month")
+  currentPeriodStart   DateTime?
+  currentPeriodEnd     DateTime?
+  trialEndsAt          DateTime?
+  canceledAt           DateTime?
+  cancelAtPeriodEnd    Boolean            @default(false)
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+
+  @@index([paddleSubscriptionId])
+  @@index([organizationId])
+}
+
+// ───────────── CORE MODELS (all scoped to Organization) ─────────────
+
+model User {
+  id             String       @id @default(cuid())
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  organizationId String
+  name           String
+  email          String       @unique
+  password       String
+  role           Role         @default(SALESMAN)
+  phone          String?
+  isActive       Boolean      @default(true)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  routes     Route[]
+  orders     Order[]    @relation("SalesmanOrders")
+  deliveries Delivery[] @relation("DeliveryPerson")
+
+  @@index([organizationId])
+}
+
+model Product {
+  id             String       @id @default(cuid())
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  organizationId String
+  name           String
+  sku            String
+  category       String
+  description    String?
+  price          Decimal      @db.Decimal(10, 2)
+  costPrice      Decimal      @db.Decimal(10, 2) @default(0)
+  stock          Int          @default(0)
+  minStock       Int          @default(10)
+  unit           String       @default("piece")
+  isActive       Boolean      @default(true)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  orderItems OrderItem[]
+
+  @@unique([organizationId, sku])
+  @@index([organizationId])
+}
+
+model Shop {
+  id             String       @id @default(cuid())
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  organizationId String
+  name           String
+  ownerName      String
+  phone          String
+  address        String
+  city           String       @default("Lahore")
+  latitude       Float?
+  longitude      Float?
+  type           ShopType     @default(RETAIL)
+  balance        Decimal      @default(0) @db.Decimal(10, 2)
+  creditLimit    Decimal      @default(0) @db.Decimal(10, 2)
+  isActive       Boolean      @default(true)
+  notes          String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  routeShops RouteShop[]
+  orders     Order[]
+  payments   Payment[]
+
+  @@index([organizationId])
+}
+
+model Route {
+  id             String       @id @default(cuid())
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  organizationId String
+  name           String
+  description    String?
+  daysOfWeek     Int[]
+  salesman       User         @relation(fields: [salesmanId], references: [id])
+  salesmanId     String
+  isActive       Boolean      @default(true)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  routeShops RouteShop[]
+  orders     Order[]
+
+  @@index([organizationId])
+}
+
+model RouteShop {
+  id         String @id @default(cuid())
+  route      Route  @relation(fields: [routeId], references: [id], onDelete: Cascade)
+  routeId    String
+  shop       Shop   @relation(fields: [shopId], references: [id])
+  shopId     String
+  visitOrder Int
+
+  @@unique([routeId, shopId])
+  @@index([routeId, visitOrder])
+}
+
+model Order {
+  id             String      @id @default(cuid())
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  organizationId String
+  orderNo        String      @unique
+  shop           Shop        @relation(fields: [shopId], references: [id])
+  shopId         String
+  salesman       User        @relation("SalesmanOrders", fields: [salesmanId], references: [id])
+  salesmanId     String
+  route          Route?      @relation(fields: [routeId], references: [id])
+  routeId        String?
+  status         OrderStatus @default(PENDING)
+  totalAmount    Decimal     @default(0) @db.Decimal(10, 2)
+  paidAmount     Decimal     @default(0) @db.Decimal(10, 2)
+  notes          String?
+  orderDate      DateTime    @default(now())
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  items    OrderItem[]
+  delivery Delivery?
+  invoice  Invoice?
+
+  @@index([organizationId])
+  @@index([organizationId, orderDate])
+}
+
+model OrderItem {
+  id        String  @id @default(cuid())
+  order     Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  orderId   String
+  product   Product @relation(fields: [productId], references: [id])
+  productId String
+  quantity  Int
+  price     Decimal @db.Decimal(10, 2)
+  subtotal  Decimal @db.Decimal(10, 2)
+}
+
+model Delivery {
+  id          String         @id @default(cuid())
+  order       Order          @relation(fields: [orderId], references: [id])
+  orderId     String         @unique
+  deliverer   User           @relation("DeliveryPerson", fields: [delivererId], references: [id])
+  delivererId String
+  status      DeliveryStatus @default(PENDING)
+  deliveredAt DateTime?
+  notes       String?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+}
+
+model Invoice {
+  id        String    @id @default(cuid())
+  invoiceNo String    @unique
+  order     Order     @relation(fields: [orderId], references: [id])
+  orderId   String    @unique
+  amount    Decimal   @db.Decimal(10, 2)
+  paid      Decimal   @default(0) @db.Decimal(10, 2)
+  dueDate   DateTime?
+  isPaid    Boolean   @default(false)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+}
+
+model Payment {
+  id             String       @id @default(cuid())
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  organizationId String
+  shop           Shop         @relation(fields: [shopId], references: [id])
+  shopId         String
+  amount         Decimal      @db.Decimal(10, 2)
+  type           PaymentType  @default(CASH)
+  reference      String?
+  notes          String?
+  receivedBy     String?
+  receivedAt     DateTime     @default(now())
+  createdAt      DateTime     @default(now())
+
+  @@index([organizationId])
+}
