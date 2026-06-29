@@ -173,10 +173,39 @@ franchise-manager/
 | PUT /api/orders/:id/status | Auth | Auth |
 | GET/POST | /api/payments | Auth |
 | GET/PUT | /api/deliveries | Auth |
+| GET | /api/invoices/:orderId/pdf | Auth |
+| DELETE | /api/invoices/history | Admin |
+| GET | /api/export/products | Admin |
+| GET | /api/export/users | Admin |
+| GET | /api/export/shops | Admin |
+| GET | /api/export/credit-report | Admin |
+| GET | /api/export/payments | Admin |
+| GET | /api/export/orders | Admin |
+| GET | /api/export/daily-sales | Admin |
+| GET | /api/export/monthly-sales | Admin |
+| GET | /api/export/product-sales-ratio | Admin |
+| GET | /api/audit-logs | Admin |
+| GET | /api/audit-logs/filters | Admin |
+| POST | /api/shops/:id/portal/credentials | Admin |
+| PUT | /api/shops/:id/portal/toggle | Admin |
+| POST | /api/shop-portal/login | Public (portal code + password) |
+| GET | /api/shop-portal/me | Shop Portal |
+| GET | /api/shop-portal/orders | Shop Portal |
+| GET | /api/shop-portal/orders/:id | Shop Portal |
+| GET | /api/shop-portal/payments | Shop Portal |
+| GET | /api/shop-portal/ledger | Shop Portal |
+| GET | /api/shop-portal/invoices/:orderId/pdf | Shop Portal |
 | GET | /api/dashboard/stats | Admin |
 | GET | /api/subscription/plans | Public |
 | GET/POST | /api/subscription | Auth |
 | POST | /api/paddle/webhook | Paddle |
+
+---
+
+## 🗺 Planned Enhancements (Not Yet Built)
+
+- **Multi-franchise admin access** — currently every account (including Admin) belongs to exactly one Organization, and `email` is globally unique, so one person cannot administer two franchises (e.g. a Coca-Cola distributorship and a Nimko distributorship) under a single login today; running both means two fully separate registrations/logins.
+  Future design: decouple login identity from organization membership via a `Membership` model (one admin identity → many Organizations, each with its own role). On login, if an admin belongs to more than one Organization, show a card-grid "select franchise" screen before the dashboard; provide an in-app switcher to change the active franchise without logging out. Salesman/Delivery accounts remain scoped to exactly one Organization each, unchanged.
 
 ---
 

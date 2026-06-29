@@ -1,6 +1,14 @@
 const prisma = require('../lib/prisma')
 const ORG = (req) => req.user.organizationId
 
+// Fields actually consumed by the salesman map/list UI — keeps the payload
+// lean instead of shipping every Shop column (organizationId, creditLimit,
+// notes, timestamps, etc.) on every route fetch.
+const SHOP_SELECT_LITE = {
+  id: true, name: true, ownerName: true, phone: true, address: true, city: true,
+  latitude: true, longitude: true, type: true, balance: true, ownerPhoto: true,
+}
+
 const getRoutes = async (req, res, next) => {
   try {
     const where = { organizationId: ORG(req), isActive: true }
@@ -9,7 +17,7 @@ const getRoutes = async (req, res, next) => {
       where,
       include: {
         salesman: { select: { id: true, name: true } },
-        routeShops: { orderBy: { visitOrder: 'asc' }, include: { shop: true } },
+        routeShops: { orderBy: { visitOrder: 'asc' }, include: { shop: { select: SHOP_SELECT_LITE } } },
         _count: { select: { routeShops: true } },
       },
       orderBy: { name: 'asc' },
@@ -23,21 +31,27 @@ const getTodayRoute = async (req, res, next) => {
     const today = new Date().getDay()
     const routes = await prisma.route.findMany({
       where: { organizationId: ORG(req), salesmanId: req.user.userId, isActive: true, daysOfWeek: { has: today } },
-      include: { routeShops: { orderBy: { visitOrder: 'asc' }, include: { shop: true } } },
+      include: { routeShops: { orderBy: { visitOrder: 'asc' }, include: { shop: { select: SHOP_SELECT_LITE } } } },
     })
 
     const todayStart = new Date(); todayStart.setHours(0,0,0,0)
     const todayEnd = new Date(); todayEnd.setHours(23,59,59,999)
 
-    const enriched = await Promise.all(routes.map(async (route) => {
-      const enrichedShops = await Promise.all(route.routeShops.map(async (rs) => {
-        const todayOrder = await prisma.order.findFirst({
-          where: { shopId: rs.shopId, salesmanId: req.user.userId, orderDate: { gte: todayStart, lte: todayEnd } },
-          include: { items: { include: { product: { select: { name: true, unit: true } } } } },
+    // Single batched query for ALL of today's orders by this salesman, instead
+    // of one query per shop (was N+1 — e.g. 2 routes × 5 shops = 10 queries
+    // on every 30s poll). We then map them by shopId in memory.
+    const allShopIds = routes.flatMap(r => r.routeShops.map(rs => rs.shopId))
+    const todaysOrders = allShopIds.length
+      ? await prisma.order.findMany({
+          where: { shopId: { in: allShopIds }, salesmanId: req.user.userId, orderDate: { gte: todayStart, lte: todayEnd } },
+          include: { items: { include: { product: { select: { name: true, unit: true } } } }, invoice: { select: { id: true, invoiceNo: true } } },
         })
-        return { ...rs, todayOrder }
-      }))
-      return { ...route, routeShops: enrichedShops }
+      : []
+    const orderByShopId = new Map(todaysOrders.map(o => [o.shopId, o]))
+
+    const enriched = routes.map(route => ({
+      ...route,
+      routeShops: route.routeShops.map(rs => ({ ...rs, todayOrder: orderByShopId.get(rs.shopId) || null })),
     }))
     res.json(enriched)
   } catch (err) { next(err) }
@@ -47,7 +61,7 @@ const getRouteById = async (req, res, next) => {
   try {
     const route = await prisma.route.findFirst({
       where: { id: req.params.id, organizationId: ORG(req) },
-      include: { salesman: { select: { id: true, name: true } }, routeShops: { orderBy: { visitOrder: 'asc' }, include: { shop: true } } },
+      include: { salesman: { select: { id: true, name: true } }, routeShops: { orderBy: { visitOrder: 'asc' }, include: { shop: { select: SHOP_SELECT_LITE } } } },
     })
     if (!route) return res.status(404).json({ message: 'Route not found' })
     res.json(route)

@@ -47,7 +47,14 @@ const getDailySales = async (req, res, next) => {
 
 const getLowStockProducts = async (req, res, next) => {
   try {
-    const products = await prisma.$queryRaw`SELECT * FROM "Product" WHERE "organizationId" = ${ORG(req)} AND "isActive" = true AND stock <= "minStock" ORDER BY stock ASC LIMIT 10`
+    // Named columns instead of SELECT * — the dashboard widget only renders
+    // name/category/stock/minStock/unit, no need to ship description, cost
+    // price, images, or timestamps for this small alert list.
+    const products = await prisma.$queryRaw`
+      SELECT id, name, category, stock, "minStock", unit
+      FROM "Product"
+      WHERE "organizationId" = ${ORG(req)} AND "isActive" = true AND stock <= "minStock"
+      ORDER BY stock ASC LIMIT 10`
     res.json(products)
   } catch (err) { next(err) }
 }
@@ -56,10 +63,15 @@ const getTopShops = async (req, res, next) => {
   try {
     const orgId = ORG(req); const monthS = new Date(); monthS.setDate(1); monthS.setHours(0,0,0,0)
     const shops = await prisma.order.groupBy({ by: ['shopId'], where: { organizationId: orgId, orderDate: { gte: monthS }, status: { in: ['CONFIRMED','DELIVERED'] } }, _sum: { totalAmount: true }, _count: true, orderBy: { _sum: { totalAmount: 'desc' } }, take: 5 })
-    const enriched = await Promise.all(shops.map(async s => {
-      const shop = await prisma.shop.findUnique({ where: { id: s.shopId }, select: { name: true, type: true } })
-      return { ...s, shop, revenue: Number(s._sum.totalAmount||0) }
-    }))
+
+    // Batch-fetch all 5 shop names in one query instead of 5 separate findUnique calls
+    const shopIds = shops.map(s => s.shopId)
+    const shopRows = shopIds.length
+      ? await prisma.shop.findMany({ where: { id: { in: shopIds } }, select: { id: true, name: true, type: true } })
+      : []
+    const shopById = new Map(shopRows.map(s => [s.id, s]))
+
+    const enriched = shops.map(s => ({ ...s, shop: shopById.get(s.shopId) || null, revenue: Number(s._sum.totalAmount||0) }))
     res.json(enriched)
   } catch (err) { next(err) }
 }

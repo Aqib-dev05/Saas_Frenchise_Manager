@@ -33,6 +33,8 @@ export const authApi = {
   login:    (d) => api.post('/auth/login', d),
   register: (d) => api.post('/auth/register', d),
   getMe:    ()  => api.get('/auth/me'),
+  forgotPassword: (d) => api.post('/auth/forgot-password', d),
+  resetPassword:  (d) => api.post('/auth/reset-password', d),
 }
 
 // ── Users ─────────────────────────────────────────────────────────────────────
@@ -46,6 +48,9 @@ export const userApi = {
 // ── Products ──────────────────────────────────────────────────────────────────
 export const productApi = {
   getAll:       (p)      => api.get('/products', { params: p }),
+  // Dropdowns/lookups (order-booking product picker) — lite:true is baked in
+  // here, not repeated at every call-site.
+  getLookup:    (p)      => api.get('/products', { params: { ...p, lite: true } }),
   getById:      (id)     => api.get(`/products/${id}`),
   getLowStock:  ()       => api.get('/products/low-stock'),
   getCategories:()       => api.get('/products/categories'),
@@ -57,11 +62,17 @@ export const productApi = {
 // ── Shops ─────────────────────────────────────────────────────────────────────
 export const shopApi = {
   getAll:          (p)     => api.get('/shops', { params: p }),
+  // Dropdowns/lookups (route shop-picker, payment shop-selector) — same idea.
+  getLookup:       (p)     => api.get('/shops', { params: { ...p, lite: true } }),
   getById:         (id)    => api.get(`/shops/${id}`),
   getTransactions: (id)    => api.get(`/shops/${id}/transactions`),
   create:          (d)     => api.post('/shops', d),
   update:          (id, d) => api.put(`/shops/${id}`, d),
   delete:          (id)    => api.delete(`/shops/${id}`),
+  // Shop-owner portal access (admin only) — generate returns the plaintext
+  // password exactly once; it is never retrievable again after this call.
+  generatePortalCredentials: (id) => api.post(`/shops/${id}/portal/credentials`),
+  togglePortalAccess:        (id, enabled) => api.put(`/shops/${id}/portal/toggle`, { enabled }),
 }
 
 // ── Routes ────────────────────────────────────────────────────────────────────
@@ -115,6 +126,18 @@ export const orgApi = {
   update: (d) => api.put('/organization', d),
 }
 
+// ── Upload ────────────────────────────────────────────────────────────────────
+export const uploadApi = {
+  uploadImage: (file, folder = 'general') => {
+    const formData = new FormData()
+    formData.append('file', file)
+    formData.append('folder', folder)
+    // Let the browser set the multipart boundary itself — overriding the
+    // instance's default 'application/json' header is required for FormData.
+    return api.post('/upload/image', formData, { headers: { 'Content-Type': undefined } })
+  },
+}
+
 // ── Subscription ──────────────────────────────────────────────────────────────
 export const subscriptionApi = {
   getPlans:      ()  => api.get('/subscription/plans'),
@@ -122,4 +145,26 @@ export const subscriptionApi = {
   getPaddleConfig: () => api.get('/subscription/paddle-config'),
   activate:      (d) => api.post('/subscription/activate', d),
   cancel:        ()  => api.post('/subscription/cancel'),
+}
+
+// ── Invoices ──────────────────────────────────────────────────────────────────
+export const invoiceApi = {
+  // Returns a PDF blob — caller is responsible for triggering the browser download.
+  downloadPdf: (orderId) => api.get(`/invoices/${orderId}/pdf`, { responseType: 'blob' }),
+  // Admin-only: clears cached PDF files (Cloudinary + DB pointers). Does not
+  // touch invoice amount/paid/isPaid — the payment ledger stays intact.
+  clearHistory: () => api.delete('/invoices/history'),
+}
+
+// ── Export (Admin only) ────────────────────────────────────────────────────────
+export const exportApi = {
+  // type: products | users | shops | credit-report | payments | orders |
+  //       daily-sales | monthly-sales | product-sales-ratio
+  download: (type, params) => api.get(`/export/${type}`, { params, responseType: 'blob' }),
+}
+
+// ── Audit Log (Admin only, read-only) ───────────────────────────────────────────
+export const auditApi = {
+  getAll:     (params) => api.get('/audit-logs', { params }),
+  getFilters: ()       => api.get('/audit-logs/filters'),
 }

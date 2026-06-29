@@ -53,7 +53,7 @@ export default function RoutesPage() {
   const [delConfirm, setDelConfirm] = useState(null)
 
   const { data: routes = [], isLoading } = useQuery({ queryKey: ['routes'], queryFn: () => routeApi.getAll().then(r => r.data) })
-  const { data: allShops = [] } = useQuery({ queryKey: ['shops-all-for-routes'], queryFn: () => shopApi.getAll({ limit: 500 }).then(r => r.data.shops) })
+  const { data: allShops = [] } = useQuery({ queryKey: ['shops-lookup-routes'], queryFn: () => shopApi.getLookup({ limit: 500 }).then(r => r.data.shops) })
   const { data: users = [] } = useQuery({ queryKey: ['users'], queryFn: () => userApi.getAll().then(r => r.data) })
   const salesmen = users.filter(u => u.role === 'SALESMAN' && u.isActive)
 
@@ -118,7 +118,7 @@ export default function RoutesPage() {
       <Modal open={!!modal} onClose={() => setModal(null)} title={modal === 'create' ? 'New Route' : 'Edit Route'}>
         <RouteForm
           defaultValues={modal && modal !== 'create' ? { name: modal.name, description: modal.description, salesmanId: modal.salesmanId, daysOfWeek: modal.daysOfWeek || [] } : {}}
-           onSubmit={d => modal === 'create' ? createM.mutate(d) : updateM.mutate({ id: modal.id, ...d })}
+          onSubmit={d => modal === 'create' ? createM.mutate(d) : updateM.mutate({ id: modal.id, ...d })}
           loading={createM.isPending || updateM.isPending}
           salesmen={salesmen}
         />

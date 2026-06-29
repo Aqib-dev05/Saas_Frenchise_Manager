@@ -1,13 +1,16 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import dynamic from 'next/dynamic'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
-import { orderApi, deliveryApi } from '@/lib/api'
-import { formatCurrency, getErrorMessage } from '@/lib/utils'
+import { orderApi, deliveryApi, invoiceApi } from '@/lib/api'
+import { formatCurrency, getErrorMessage, downloadBlob } from '@/lib/utils'
+import { nearestNeighborRoute } from '@/lib/routeOptimizer'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
 import Modal from '@/components/ui/Modal'
-import { Truck, Package, CheckCircle, Clock, Map, List, AlertCircle, ChevronDown, ChevronUp, BarChart3 } from 'lucide-react'
+import Avatar from '@/components/ui/Avatar'
+import CollectPaymentModal from '@/components/delivery/CollectPaymentModal'
+import { Truck, Package, CheckCircle, Clock, Map, List, AlertCircle, ChevronDown, ChevronUp, Wallet, Navigation, Loader2, MapPin, Download } from 'lucide-react'
 
 const DeliveryMap = dynamic(() => import('@/components/delivery/DeliveryMap'), {
   ssr: false,
@@ -18,7 +21,20 @@ const DeliveryMap = dynamic(() => import('@/components/delivery/DeliveryMap'), {
   ),
 })
 
-function DeliveryCard({ delivery, onMarkDelivered, loading }) {
+function PhoneLink({ phone }) {
+  if (!phone) return null
+  return (
+    <a
+      href={`tel:${phone}`}
+      onClick={(e) => e.stopPropagation()}
+      className="text-indigo-600 hover:text-indigo-700 hover:underline"
+    >
+      {phone}
+    </a>
+  )
+}
+
+function DeliveryCard({ delivery, onMarkDelivered, onCollectPayment, onDownloadInvoice, downloadingInvoiceId, loading }) {
   const [expanded, setExpanded] = useState(false)
   const order = delivery.order
   const shop = order?.shop
@@ -36,7 +52,6 @@ function DeliveryCard({ delivery, onMarkDelivered, loading }) {
       <div className="p-4">
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-start gap-3 flex-1 min-w-0">
-            {/* Status icon */}
             <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${
               status === 'DELIVERED' ? 'bg-emerald-500' : status === 'IN_TRANSIT' ? 'bg-amber-500' : 'bg-slate-400'
             }`}>
@@ -48,10 +63,16 @@ function DeliveryCard({ delivery, onMarkDelivered, loading }) {
 
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2 flex-wrap">
+                <Avatar src={shop?.ownerPhoto} name={shop?.ownerName} size="xs" />
                 <h3 className="font-bold text-gray-900">{shop?.name}</h3>
                 <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${statusConfig.badge}`}>{statusConfig.label}</span>
+                {delivery.routeOrder && (
+                  <span className="text-xs px-2 py-0.5 rounded-full font-semibold bg-indigo-100 text-indigo-700">
+                    Stop #{delivery.routeOrder}
+                  </span>
+                )}
               </div>
-              <p className="text-sm text-gray-500 mt-0.5">{shop?.ownerName} · {shop?.phone}</p>
+              <p className="text-sm text-gray-500 mt-0.5">{shop?.ownerName} · <PhoneLink phone={shop?.phone} /></p>
               <p className="text-xs text-gray-400">{shop?.address}</p>
             </div>
           </div>
@@ -59,10 +80,19 @@ function DeliveryCard({ delivery, onMarkDelivered, loading }) {
           <div className="text-right flex-shrink-0">
             <p className="font-bold text-gray-900 text-lg">{formatCurrency(order?.totalAmount)}</p>
             <p className="text-xs text-gray-400">{order?.items?.length} items</p>
+            {order?.invoice && (
+              <button
+                onClick={() => onDownloadInvoice(order)}
+                disabled={downloadingInvoiceId === order.id}
+                title="Download invoice PDF"
+                className="mt-1.5 flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-700 disabled:opacity-50"
+              >
+                <Download className="w-3.5 h-3.5" />{downloadingInvoiceId === order.id ? '...' : 'Invoice'}
+              </button>
+            )}
           </div>
         </div>
 
-        {/* Order meta */}
         <div className="flex items-center gap-3 mt-3 text-xs text-gray-500">
           <span className="font-mono bg-gray-100 px-2 py-0.5 rounded">{order?.orderNo}</span>
           <span className={`px-2 py-0.5 rounded-full font-medium ${
@@ -75,7 +105,6 @@ function DeliveryCard({ delivery, onMarkDelivered, loading }) {
           )}
         </div>
 
-        {/* Item toggle */}
         <button
           onClick={() => setExpanded(!expanded)}
           className="mt-3 flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-700 font-medium"
@@ -99,16 +128,22 @@ function DeliveryCard({ delivery, onMarkDelivered, loading }) {
           </div>
         )}
 
-        {/* Action button */}
         {status !== 'DELIVERED' && status !== 'FAILED' && (
-          <div className="mt-4">
+          <div className="mt-4 flex gap-2">
+            <button
+              onClick={() => onCollectPayment(shop)}
+              className="flex-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-semibold py-2.5 rounded-xl flex items-center justify-center gap-2 transition-colors"
+            >
+              <Wallet className="w-4 h-4" />
+              Collect Payment
+            </button>
             <button
               onClick={() => onMarkDelivered(delivery.id)}
               disabled={loading}
-              className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2.5 rounded-xl flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
+              className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2.5 rounded-xl flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
             >
               <CheckCircle className="w-4 h-4" />
-              {loading ? 'Updating...' : 'Mark as Delivered'}
+              {loading ? 'Updating...' : 'Mark Delivered'}
             </button>
           </div>
         )}
@@ -126,8 +161,38 @@ function DeliveryCard({ delivery, onMarkDelivered, loading }) {
 
 export default function DeliveryPage() {
   const qc = useQueryClient()
-  const [view, setView] = useState('list') // 'list' | 'map'
+  const [view, setView] = useState('list')
   const [manifestOpen, setManifestOpen] = useState(false)
+  const [paymentShop, setPaymentShop] = useState(null)
+
+  // ── Geolocation for route suggestion ──
+  const [userLocation, setUserLocation] = useState(null)
+  const [locationStatus, setLocationStatus] = useState('idle') // idle | requesting | granted | denied | unsupported
+  const [locationRequested, setLocationRequested] = useState(false)
+
+  useEffect(() => {
+    if (view !== 'map' || locationRequested) return
+    setLocationRequested(true)
+
+    if (!navigator.geolocation) {
+      setLocationStatus('unsupported')
+      return
+    }
+
+    setLocationStatus('requesting')
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setUserLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude })
+        setLocationStatus('granted')
+      },
+      () => setLocationStatus('denied'),
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
+    )
+  }, [view, locationRequested])
+
+  const retryLocation = () => {
+    setLocationRequested(false)
+  }
 
   const { data: orders = [], isLoading, refetch } = useQuery({
     queryKey: ['today-orders-delivery'],
@@ -151,7 +216,6 @@ export default function DeliveryPage() {
     onError: (e) => toast.error(getErrorMessage(e)),
   })
 
-  // Also allow marking order as delivered directly if no delivery record
   const orderStatusM = useMutation({
     mutationFn: (id) => orderApi.updateStatus(id, { status: 'DELIVERED' }),
     onSuccess: () => {
@@ -161,7 +225,12 @@ export default function DeliveryPage() {
     onError: (e) => toast.error(getErrorMessage(e)),
   })
 
-  // Build loading manifest: aggregate all items across orders
+  const pdfM = useMutation({
+    mutationFn: (order) => invoiceApi.downloadPdf(order.id),
+    onSuccess: (res, order) => downloadBlob(res.data, `${order.invoice?.invoiceNo || order.orderNo}.pdf`),
+    onError: (e) => toast.error(getErrorMessage(e)),
+  })
+
   const manifest = {}
   orders.forEach(order => {
     order.items?.forEach(item => {
@@ -174,6 +243,31 @@ export default function DeliveryPage() {
     })
   })
   const manifestItems = Object.values(manifest)
+
+  // Merge orders + deliveries into one list
+  const mergedDeliveries = useMemo(() => {
+    return orders.map(order => {
+      const delivery = deliveries.find(d => d.orderId === order.id)
+      return delivery
+        ? { ...delivery, order, isRealDelivery: true }
+        : { id: order.id, orderId: order.id, status: order.status === 'DISPATCHED' ? 'IN_TRANSIT' : 'PENDING', order, isRealDelivery: false }
+    })
+  }, [orders, deliveries])
+
+  // Apply nearest-neighbor route optimization once we have the user's location
+  const optimizedDeliveries = useMemo(() => {
+    const withCoords = mergedDeliveries.filter(d => d.order?.shop?.latitude && d.order?.shop?.longitude)
+    if (!userLocation || withCoords.length === 0) return mergedDeliveries
+
+    const points = withCoords.map(d => ({ ...d, lat: d.order.shop.latitude, lng: d.order.shop.longitude }))
+    const ordered = nearestNeighborRoute(userLocation.lat, userLocation.lng, points)
+    const withoutCoords = mergedDeliveries.filter(d => !(d.order?.shop?.latitude && d.order?.shop?.longitude))
+
+    return [
+      ...ordered.map((d, idx) => ({ ...d, routeOrder: idx + 1 })),
+      ...withoutCoords,
+    ]
+  }, [mergedDeliveries, userLocation])
 
   const todayDate = new Date().toLocaleDateString('en-PK', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
   const totalOrders = orders.length
@@ -193,7 +287,6 @@ export default function DeliveryPage() {
           </div>
 
           <div className="flex items-center gap-4">
-            {/* Stats */}
             <div className="flex items-center gap-5 text-sm">
               <div className="text-center">
                 <div className="font-bold text-emerald-600">{deliveredCount}/{totalOrders}</div>
@@ -205,16 +298,11 @@ export default function DeliveryPage() {
               </div>
             </div>
 
-            {/* Loading manifest button */}
-            <button
-              onClick={() => setManifestOpen(true)}
-              className="btn-secondary flex items-center gap-2 text-sm"
-            >
+            <button onClick={() => setManifestOpen(true)} className="btn-secondary flex items-center gap-2 text-sm">
               <Package className="w-4 h-4" />
               Loading Manifest
             </button>
 
-            {/* View toggle */}
             <div className="flex items-center bg-gray-100 rounded-xl p-1 gap-1">
               <button onClick={() => setView('list')} className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all flex items-center gap-1.5 ${view === 'list' ? 'bg-white shadow text-gray-900' : 'text-gray-500'}`}>
                 <List className="w-3.5 h-3.5" /> List
@@ -226,7 +314,6 @@ export default function DeliveryPage() {
           </div>
         </div>
 
-        {/* Progress bar */}
         <div className="mt-3 h-2 bg-gray-100 rounded-full overflow-hidden">
           <div
             className="h-full bg-emerald-500 rounded-full transition-all duration-700"
@@ -235,7 +322,32 @@ export default function DeliveryPage() {
         </div>
       </div>
 
-      {/* No orders */}
+      {/* Location status banner — only relevant in map view */}
+      {view === 'map' && locationStatus !== 'idle' && (
+        <div className={`px-6 py-2.5 flex items-center gap-2 text-sm flex-shrink-0 ${
+          locationStatus === 'granted' ? 'bg-indigo-50 text-indigo-700' :
+          locationStatus === 'requesting' ? 'bg-slate-50 text-slate-600' :
+          'bg-amber-50 text-amber-700'
+        }`}>
+          {locationStatus === 'requesting' && (
+            <><Loader2 className="w-4 h-4 animate-spin" /> Requesting your location to suggest the best route...</>
+          )}
+          {locationStatus === 'granted' && (
+            <><Navigation className="w-4 h-4" /> Route optimized from your current location — numbers on the map show suggested visit order.</>
+          )}
+          {locationStatus === 'denied' && (
+            <>
+              <MapPin className="w-4 h-4" />
+              Location permission denied — showing default order.
+              <button onClick={retryLocation} className="underline font-medium ml-1">Try again</button>
+            </>
+          )}
+          {locationStatus === 'unsupported' && (
+            <><MapPin className="w-4 h-4" /> Location not supported on this device — showing default order.</>
+          )}
+        </div>
+      )}
+
       {orders.length === 0 && (
         <div className="flex-1 flex items-center justify-center p-8">
           <div className="text-center">
@@ -249,25 +361,27 @@ export default function DeliveryPage() {
       {/* List view */}
       {view === 'list' && orders.length > 0 && (
         <div className="flex-1 overflow-y-auto p-5 space-y-4">
-          {orders.map(order => {
-            const delivery = deliveries.find(d => d.orderId === order.id)
-            if (delivery) {
+          {mergedDeliveries.map(delivery => {
+            const order = delivery.order
+            if (delivery.isRealDelivery) {
               return (
                 <DeliveryCard
                   key={delivery.id}
-                  delivery={{ ...delivery, order }}
+                  delivery={delivery}
                   onMarkDelivered={markDeliveredM.mutate}
+                  onCollectPayment={setPaymentShop}
+                  onDownloadInvoice={pdfM.mutate}
+                  downloadingInvoiceId={pdfM.isPending ? pdfM.variables?.id : null}
                   loading={markDeliveredM.isPending}
                 />
               )
             }
-            // Fallback: direct order mark (if no delivery record yet)
             return (
               <div key={order.id} className="rounded-2xl border-2 border-gray-200 bg-white p-4">
                 <div className="flex items-start justify-between">
                   <div>
                     <h3 className="font-bold text-gray-900">{order.shop?.name}</h3>
-                    <p className="text-sm text-gray-500">{order.shop?.ownerName} · {order.shop?.phone}</p>
+                    <p className="text-sm text-gray-500">{order.shop?.ownerName} · <PhoneLink phone={order.shop?.phone} /></p>
                     <p className="text-xs text-gray-400 mt-1">{order.shop?.address}</p>
                     <span className="inline-block mt-2 font-mono text-xs bg-gray-100 px-2 py-0.5 rounded">{order.orderNo}</span>
                   </div>
@@ -275,16 +389,35 @@ export default function DeliveryPage() {
                     <p className="font-bold text-lg text-gray-900">{formatCurrency(order.totalAmount)}</p>
                     <p className="text-xs text-gray-400">{order.items?.length} items</p>
                     <span className={`inline-block mt-1 text-xs px-2 py-0.5 rounded-full font-medium ${order.status === 'CONFIRMED' ? 'bg-blue-100 text-blue-700' : 'bg-orange-100 text-orange-700'}`}>{order.status}</span>
+                    {order.invoice && (
+                      <button
+                        onClick={() => pdfM.mutate(order)}
+                        disabled={pdfM.isPending && pdfM.variables?.id === order.id}
+                        title="Download invoice PDF"
+                        className="mt-1.5 flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-700 ml-auto disabled:opacity-50"
+                      >
+                        <Download className="w-3.5 h-3.5" />{pdfM.isPending && pdfM.variables?.id === order.id ? '...' : 'Invoice'}
+                      </button>
+                    )}
                   </div>
                 </div>
-                <button
-                  onClick={() => orderStatusM.mutate(order.id)}
-                  disabled={orderStatusM.isPending}
-                  className="mt-4 w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2.5 rounded-xl flex items-center justify-center gap-2 transition-colors"
-                >
-                  <CheckCircle className="w-4 h-4" />
-                  Mark as Delivered
-                </button>
+                <div className="mt-4 flex gap-2">
+                  <button
+                    onClick={() => setPaymentShop(order.shop)}
+                    className="flex-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-semibold py-2.5 rounded-xl flex items-center justify-center gap-2 transition-colors"
+                  >
+                    <Wallet className="w-4 h-4" />
+                    Collect Payment
+                  </button>
+                  <button
+                    onClick={() => orderStatusM.mutate(order.id)}
+                    disabled={orderStatusM.isPending}
+                    className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2.5 rounded-xl flex items-center justify-center gap-2 transition-colors"
+                  >
+                    <CheckCircle className="w-4 h-4" />
+                    Mark Delivered
+                  </button>
+                </div>
               </div>
             )
           })}
@@ -294,9 +427,7 @@ export default function DeliveryPage() {
       {/* Map view */}
       {view === 'map' && orders.length > 0 && (
         <div className="flex-1 p-4">
-          <DeliveryMap
-            deliveries={deliveries.length > 0 ? deliveries.map(d => ({ ...d, order: orders.find(o => o.id === d.orderId) || d.order })) : orders.map(o => ({ id: o.id, status: o.status, orderId: o.id, order: o }))}
-          />
+          <DeliveryMap deliveries={optimizedDeliveries} userLocation={userLocation} />
         </div>
       )}
 
@@ -342,6 +473,12 @@ export default function DeliveryPage() {
           </div>
         </div>
       </Modal>
+
+      <CollectPaymentModal
+        shop={paymentShop}
+        open={!!paymentShop}
+        onClose={() => setPaymentShop(null)}
+      />
     </div>
   )
 }

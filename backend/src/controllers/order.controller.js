@@ -4,6 +4,26 @@ const ORG = (req) => req.user.organizationId
 const makeOrderNo = () => `ORD-${new Date().toISOString().slice(0,10).replace(/-/g,'')}-${Math.floor(1000+Math.random()*9000)}`
 const makeInvoiceNo = () => `INV-${new Date().toISOString().slice(0,10).replace(/-/g,'')}-${Math.floor(1000+Math.random()*9000)}`
 
+// Lean projections — only the fields each consuming screen actually renders.
+// Keeping these tight matters here more than anywhere else in the API:
+// getTodayOrders is polled every 30s by BOTH the salesman and delivery
+// dashboards, so trimming it directly cuts recurring payload size/DB cost.
+const ORDER_SHOP_SELECT = {
+  id: true, name: true, ownerName: true, phone: true, address: true, city: true,
+  latitude: true, longitude: true, type: true, balance: true, ownerPhoto: true,
+}
+const ORDER_ITEM_PRODUCT_SELECT = { id: true, name: true, unit: true }
+const ORDER_ITEM_SELECT = { id: true, quantity: true, price: true, subtotal: true, product: { select: ORDER_ITEM_PRODUCT_SELECT } }
+const SALESMAN_SELECT = { id: true, name: true }
+
+// Base order fields shared by every list/detail response — deliberately
+// excludes organizationId/shopId/salesmanId/routeId (raw FK columns) since
+// every consumer reads the nested shop/salesman objects instead.
+const ORDER_BASE_SELECT = {
+  id: true, orderNo: true, status: true, totalAmount: true, paidAmount: true,
+  notes: true, orderDate: true, createdAt: true, updatedAt: true,
+}
+
 const getOrders = async (req, res, next) => {
   try {
     const { status, date, shopId, page=1, limit=20 } = req.query
@@ -16,7 +36,17 @@ const getOrders = async (req, res, next) => {
       where.orderDate = { gte: start, lte: end }
     }
     const [orders, total] = await Promise.all([
-      prisma.order.findMany({ where, include: { shop: { select: { id:true, name:true, type:true, address:true } }, salesman: { select: { id:true, name:true } }, items: { include: { product: { select: { id:true, name:true, unit:true } } } }, invoice:true, delivery:true }, orderBy: { createdAt: 'desc' }, skip: (Number(page)-1)*Number(limit), take: Number(limit) }),
+      prisma.order.findMany({
+        where,
+        select: {
+          ...ORDER_BASE_SELECT,
+          shop: { select: ORDER_SHOP_SELECT },
+          salesman: { select: SALESMAN_SELECT },
+          items: { select: ORDER_ITEM_SELECT },
+          invoice: true, // used by admin Invoices page
+        },
+        orderBy: { createdAt: 'desc' }, skip: (Number(page)-1)*Number(limit), take: Number(limit),
+      }),
       prisma.order.count({ where }),
     ])
     res.json({ orders, total })
@@ -29,14 +59,37 @@ const getTodayOrders = async (req, res, next) => {
     const where = { organizationId: ORG(req), orderDate: { gte: start, lte: end } }
     if (req.user.role === 'DELIVERY') where.status = { in: ['CONFIRMED','DISPATCHED'] }
     if (req.user.role === 'SALESMAN') where.salesmanId = req.user.userId
-    const orders = await prisma.order.findMany({ where, include: { shop: true, salesman: { select: { id:true, name:true } }, items: { include: { product: true } }, delivery: true, invoice: true }, orderBy: { createdAt: 'asc' } })
+    // Delivery status comes from a separate /deliveries fetch, so it's still
+    // omitted here — but `invoice` (lean) is included so both dashboards can
+    // offer an invoice-download action without an extra round trip.
+    const orders = await prisma.order.findMany({
+      where,
+      select: {
+        ...ORDER_BASE_SELECT,
+        shop: { select: ORDER_SHOP_SELECT },
+        salesman: { select: SALESMAN_SELECT },
+        items: { select: ORDER_ITEM_SELECT },
+        invoice: { select: { id: true, invoiceNo: true } },
+      },
+      orderBy: { createdAt: 'asc' },
+    })
     res.json(orders)
   } catch (err) { next(err) }
 }
 
 const getOrderById = async (req, res, next) => {
   try {
-    const order = await prisma.order.findFirst({ where: { id: req.params.id, organizationId: ORG(req) }, include: { shop: true, salesman: { select: { id:true, name:true } }, items: { include: { product: true } }, delivery: { include: { deliverer: { select: { id:true, name:true } } } }, invoice: true } })
+    const order = await prisma.order.findFirst({
+      where: { id: req.params.id, organizationId: ORG(req) },
+      select: {
+        ...ORDER_BASE_SELECT,
+        shop: { select: ORDER_SHOP_SELECT },
+        salesman: { select: SALESMAN_SELECT },
+        items: { select: ORDER_ITEM_SELECT },
+        delivery: { select: { id: true, status: true, deliveredAt: true, notes: true, deliverer: { select: SALESMAN_SELECT } } },
+        invoice: true,
+      },
+    })
     if (!order) return res.status(404).json({ message: 'Order not found' })
     res.json(order)
   } catch (err) { next(err) }
@@ -61,7 +114,7 @@ const createOrder = async (req, res, next) => {
 
     const order = await prisma.order.create({
       data: { organizationId: ORG(req), orderNo: makeOrderNo(), shopId, salesmanId: req.user.userId, routeId: routeId||null, totalAmount, notes: notes||null, items: { create: orderItems } },
-      include: { shop: true, salesman: { select: { id:true, name:true } }, items: { include: { product: true } } },
+      select: { ...ORDER_BASE_SELECT, shop: { select: ORDER_SHOP_SELECT }, items: { select: ORDER_ITEM_SELECT } },
     })
     res.status(201).json(order)
   } catch (err) { next(err) }
@@ -104,7 +157,11 @@ const updateOrderStatus = async (req, res, next) => {
       await prisma.delivery.updateMany({ where: { orderId: id }, data: { status: 'FAILED' } })
     }
 
-    const updated = await prisma.order.update({ where: { id }, data: updates, include: { shop: true, items: { include: { product: true } }, delivery: true, invoice: true } })
+    const updated = await prisma.order.update({
+      where: { id },
+      data: updates,
+      select: { ...ORDER_BASE_SELECT, shop: { select: ORDER_SHOP_SELECT }, items: { select: ORDER_ITEM_SELECT }, delivery: true, invoice: true },
+    })
     res.json(updated)
   } catch (err) { next(err) }
 }
@@ -124,7 +181,11 @@ const updateOrder = async (req, res, next) => {
       orderItems.push({ productId: item.productId, quantity: Number(item.quantity), price: Number(p.price), subtotal })
     }
     await prisma.orderItem.deleteMany({ where: { orderId: req.params.id } })
-    const updated = await prisma.order.update({ where: { id: req.params.id }, data: { totalAmount, notes: notes||null, items: { create: orderItems } }, include: { shop: true, items: { include: { product: true } } } })
+    const updated = await prisma.order.update({
+      where: { id: req.params.id },
+      data: { totalAmount, notes: notes||null, items: { create: orderItems } },
+      select: { ...ORDER_BASE_SELECT, shop: { select: ORDER_SHOP_SELECT }, items: { select: ORDER_ITEM_SELECT } },
+    })
     res.json(updated)
   } catch (err) { next(err) }
 }

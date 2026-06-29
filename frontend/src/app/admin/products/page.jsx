@@ -4,15 +4,28 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
 import toast from 'react-hot-toast'
 import { productApi } from '@/lib/api'
-import { formatCurrency, getErrorMessage } from '@/lib/utils'
+import { formatCurrency, getErrorMessage, optimizedImageUrl } from '@/lib/utils'
 import Modal from '@/components/ui/Modal'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
+import MultiImageUpload from '@/components/ui/MultiImageUpload'
 import { Plus, Edit2, Trash2, Search, AlertTriangle, Package } from 'lucide-react'
 
 function ProductForm({ defaultValues, onSubmit, loading }) {
-  const { register, handleSubmit, formState: { errors } } = useForm({ defaultValues })
+  const { register, handleSubmit, watch, setValue, formState: { errors } } = useForm({ defaultValues })
+  const images = watch('images') || []
+
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+      <div>
+        <label className="label">Product Photos</label>
+        <MultiImageUpload
+          value={images}
+          onChange={(urls) => setValue('images', urls)}
+          folder="products"
+          max={2}
+        />
+      </div>
+
       <div className="grid grid-cols-2 gap-4">
         <div className="col-span-2"><label className="label">Product Name *</label>
           <input className="input" {...register('name', { required: true })} />{errors.name && <p className="text-red-500 text-xs mt-1">Required</p>}</div>
@@ -94,7 +107,12 @@ export default function ProductsPage() {
                 <tr key={p.id} className="hover:bg-gray-50/50">
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 bg-indigo-100 rounded-lg flex items-center justify-center"><Package className="w-4 h-4 text-indigo-600" /></div>
+                      {p.images?.[0] ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={optimizedImageUrl(p.images[0])} alt={p.name} className="w-8 h-8 rounded-lg object-cover flex-shrink-0" />
+                      ) : (
+                        <div className="w-8 h-8 bg-indigo-100 rounded-lg flex items-center justify-center flex-shrink-0"><Package className="w-4 h-4 text-indigo-600" /></div>
+                      )}
                       <span className="font-medium text-gray-900">{p.name}</span>
                     </div>
                   </td>
@@ -124,7 +142,7 @@ export default function ProductsPage() {
 
       <Modal open={!!modal} onClose={() => setModal(null)} title={modal === 'create' ? 'Add Product' : 'Edit Product'} size="md">
         <ProductForm
-          defaultValues={modal && modal !== 'create' ? modal : { unit: 'piece', stock: 0, minStock: 10 }}
+          defaultValues={modal && modal !== 'create' ? modal : { unit: 'piece', stock: 0, minStock: 10, images: [] }}
           onSubmit={(d) => modal === 'create' ? createMutation.mutate(d) : updateMutation.mutate({ id: modal.id, ...d })}
           loading={createMutation.isPending || updateMutation.isPending}
         />

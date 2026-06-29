@@ -3,10 +3,10 @@ import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useForm, useFieldArray } from 'react-hook-form'
 import toast from 'react-hot-toast'
-import { productApi, orderApi } from '@/lib/api'
-import { formatCurrency, getErrorMessage } from '@/lib/utils'
+import { productApi, orderApi, invoiceApi } from '@/lib/api'
+import { formatCurrency, getErrorMessage, downloadBlob } from '@/lib/utils'
 import Modal from '@/components/ui/Modal'
-import { Plus, Trash2, ShoppingCart, Package, AlertTriangle } from 'lucide-react'
+import { Plus, Trash2, ShoppingCart, Package, AlertTriangle, Download } from 'lucide-react'
 
 export default function OrderModal({ routeShop, routeId, open, onClose, onSuccess }) {
   const qc = useQueryClient()
@@ -14,9 +14,15 @@ export default function OrderModal({ routeShop, routeId, open, onClose, onSucces
   const existingOrder = routeShop?.todayOrder
   const isEditing = !!existingOrder && existingOrder.status === 'PENDING'
 
+  const pdfM = useMutation({
+    mutationFn: () => invoiceApi.downloadPdf(existingOrder.id),
+    onSuccess: (res) => downloadBlob(res.data, `${existingOrder?.invoice?.invoiceNo || existingOrder.orderNo}.pdf`),
+    onError: (e) => toast.error(getErrorMessage(e)),
+  })
+
   const { data: productsData } = useQuery({
-    queryKey: ['products'],
-    queryFn: () => productApi.getAll({ limit: 500 }).then(r => r.data),
+    queryKey: ['products-lookup-order'],
+    queryFn: () => productApi.getLookup({ limit: 500 }).then(r => r.data),
     enabled: open,
   })
 
@@ -79,7 +85,7 @@ export default function OrderModal({ routeShop, routeId, open, onClose, onSucces
         <div className="flex items-start justify-between bg-slate-50 rounded-xl p-4">
           <div>
             <h2 className="font-bold text-gray-900 text-lg">{shop.name}</h2>
-            <p className="text-gray-500 text-sm">{shop.ownerName} · {shop.phone}</p>
+            <p className="text-gray-500 text-sm">{shop.ownerName} · <a href={`tel:${shop.phone}`} className="text-indigo-600 hover:underline">{shop.phone}</a></p>
             <p className="text-gray-400 text-xs mt-1">{shop.address}</p>
           </div>
           <div className="text-right">
@@ -100,12 +106,27 @@ export default function OrderModal({ routeShop, routeId, open, onClose, onSucces
         {/* Already booked and not editable */}
         {existingOrder && existingOrder.status !== 'PENDING' && (
           <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4">
-            <p className="text-emerald-700 font-semibold text-sm flex items-center gap-2">
-              <ShoppingCart className="w-4 h-4" /> Order already placed — {existingOrder.status}
-            </p>
-            <p className="text-emerald-600 text-xs mt-1">
-              {existingOrder.orderNo} · {formatCurrency(existingOrder.totalAmount)} · {existingOrder.items.length} items
-            </p>
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-emerald-700 font-semibold text-sm flex items-center gap-2">
+                  <ShoppingCart className="w-4 h-4" /> Order already placed — {existingOrder.status}
+                </p>
+                <p className="text-emerald-600 text-xs mt-1">
+                  {existingOrder.orderNo} · {formatCurrency(existingOrder.totalAmount)} · {existingOrder.items.length} items
+                </p>
+              </div>
+              {existingOrder.invoice && (
+                <button
+                  type="button"
+                  onClick={() => pdfM.mutate()}
+                  disabled={pdfM.isPending}
+                  title="Download invoice PDF"
+                  className="flex items-center gap-1.5 text-xs bg-white border border-emerald-200 text-emerald-700 px-2.5 py-1.5 rounded-lg hover:bg-emerald-100 disabled:opacity-50 shrink-0"
+                >
+                  <Download className="w-3.5 h-3.5" />{pdfM.isPending ? 'Loading…' : 'Invoice'}
+                </button>
+              )}
+            </div>
             <div className="mt-3 space-y-1">
               {existingOrder.items.map(item => (
                 <div key={item.id} className="flex justify-between text-xs text-emerald-700">

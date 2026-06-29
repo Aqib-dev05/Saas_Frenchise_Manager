@@ -2,12 +2,12 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
-import { orderApi } from '@/lib/api'
-import { formatCurrency, formatDateTime, getErrorMessage, ORDER_STATUSES } from '@/lib/utils'
+import { orderApi, invoiceApi } from '@/lib/api'
+import { formatCurrency, formatDateTime, getErrorMessage, downloadBlob, ORDER_STATUSES } from '@/lib/utils'
 import { StatusBadge } from '@/components/ui/Badge'
 import Modal from '@/components/ui/Modal'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
-import { Eye, CheckCircle, XCircle, Truck, Package } from 'lucide-react'
+import { Eye, CheckCircle, XCircle, Truck, Package, Download } from 'lucide-react'
 
 export default function OrdersPage() {
   const qc = useQueryClient()
@@ -24,6 +24,12 @@ export default function OrdersPage() {
   const statusM = useMutation({
     mutationFn: ({ id, status }) => orderApi.updateStatus(id, { status }),
     onSuccess: (_, { status }) => { toast.success(`Order ${status.toLowerCase()}`); qc.invalidateQueries(['orders']); setViewOrder(null) },
+    onError: e => toast.error(getErrorMessage(e)),
+  })
+
+  const pdfM = useMutation({
+    mutationFn: (order) => invoiceApi.downloadPdf(order.id),
+    onSuccess: (res, order) => downloadBlob(res.data, `${order.invoice?.invoiceNo || order.orderNo}.pdf`),
     onError: e => toast.error(getErrorMessage(e)),
   })
 
@@ -85,6 +91,16 @@ export default function OrdersPage() {
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-1.5 flex-wrap">
                       <button onClick={() => setViewOrder(o)} className="p-1.5 text-gray-400 hover:text-indigo-600 rounded-lg hover:bg-indigo-50"><Eye className="w-4 h-4" /></button>
+                      {o.invoice && (
+                        <button
+                          onClick={() => pdfM.mutate(o)}
+                          disabled={pdfM.isPending && pdfM.variables?.id === o.id}
+                          title="Download invoice PDF"
+                          className="p-1.5 text-gray-400 hover:text-indigo-600 rounded-lg hover:bg-indigo-50 disabled:opacity-50"
+                        >
+                          <Download className="w-4 h-4" />
+                        </button>
+                      )}
                       {actionButtons(o)}
                     </div>
                   </td>
@@ -133,7 +149,18 @@ export default function OrdersPage() {
                 </tr></tfoot>
               </table>
             </div>
-            <div className="flex gap-2 flex-wrap border-t pt-4">{actionButtons(viewOrder)}</div>
+            <div className="flex gap-2 flex-wrap border-t pt-4">
+              {viewOrder.invoice && (
+                <button
+                  onClick={() => pdfM.mutate(viewOrder)}
+                  disabled={pdfM.isPending && pdfM.variables?.id === viewOrder.id}
+                  className="flex items-center gap-1.5 text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1.5 rounded-lg disabled:opacity-50"
+                >
+                  <Download className="w-3.5 h-3.5" />Download Invoice
+                </button>
+              )}
+              {actionButtons(viewOrder)}
+            </div>
           </div>
         )}
       </Modal>

@@ -60,7 +60,10 @@ export default function LoginPage() {
               {errors.email && <p className="text-red-500 text-xs mt-1">{errors.email.message}</p>}
             </div>
             <div>
-              <label className="label">Password</label>
+              <div className="flex items-center justify-between">
+                <label className="label">Password</label>
+                <Link href="/forgot-password" className="text-xs text-indigo-600 hover:text-indigo-700 font-medium mb-1">Forgot password?</Link>
+              </div>
               <div className="relative">
                 <input className="input pr-10" type={showPass ? 'text' : 'password'} placeholder="••••••••"
                   {...register('password', { required: 'Password required' })} />

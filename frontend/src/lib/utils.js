@@ -47,6 +47,28 @@ export const DELIVERY_STATUS_COLORS = {
 export const getErrorMessage = (error) =>
   error?.response?.data?.message || error?.message || 'Something went wrong'
 
+// Triggers a browser "Save As" for a blob returned by an API call (e.g. a PDF).
+export const downloadBlob = (blob, filename) => {
+  const url = window.URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = filename
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  window.URL.revokeObjectURL(url)
+}
+
+// Inserts Cloudinary's auto-format/auto-quality delivery transformation.
+// This is intentionally NOT baked in at upload time — applying it here means
+// each viewer's browser gets the best format (WebP/AVIF/JPEG) automatically.
+export const optimizedImageUrl = (url, transform = 'f_auto,q_auto') => {
+  if (!url || typeof url !== 'string') return url
+  if (!url.includes('/upload/')) return url
+  if (url.includes('/upload/f_auto')) return url // already optimized
+  return url.replace('/upload/', `/upload/${transform}/`)
+}
+
 export const getInitials = (name) =>
   name ? name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) : '?'
 

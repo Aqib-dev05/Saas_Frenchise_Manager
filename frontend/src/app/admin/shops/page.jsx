@@ -1,19 +1,42 @@
 'use client'
 import { useState } from 'react'
+import dynamic from 'next/dynamic'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
 import toast from 'react-hot-toast'
 import { shopApi } from '@/lib/api'
-import { formatCurrency, getErrorMessage, SHOP_TYPES } from '@/lib/utils'
+import { formatCurrency, formatDateTime, getErrorMessage, SHOP_TYPES } from '@/lib/utils'
 import { ShopTypeBadge } from '@/components/ui/Badge'
 import Modal from '@/components/ui/Modal'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
-import { Plus, Edit2, Trash2, Search, MapPin, Phone, Eye } from 'lucide-react'
+import Avatar from '@/components/ui/Avatar'
+import ImageUpload from '@/components/ui/ImageUpload'
+import { Plus, Edit2, Trash2, Search, MapPin, Phone, Eye, KeyRound, Copy, Check, ShieldOff } from 'lucide-react'
+
+const LocationPicker = dynamic(() => import('@/components/admin/LocationPicker'), {
+  ssr: false,
+  loading: () => <div className="h-64 bg-slate-100 rounded-xl animate-pulse flex items-center justify-center text-slate-400 text-sm">Loading map...</div>,
+})
 
 function ShopForm({ defaultValues, onSubmit, loading }) {
-  const { register, handleSubmit, formState: { errors } } = useForm({ defaultValues })
+  const { register, handleSubmit, watch, setValue, formState: { errors } } = useForm({ defaultValues })
+  const lat = watch('latitude')
+  const lng = watch('longitude')
+  const ownerPhoto = watch('ownerPhoto')
+
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+      <div>
+        <label className="label">Owner Photo</label>
+        <ImageUpload
+          value={ownerPhoto}
+          onChange={(url) => setValue('ownerPhoto', url)}
+          folder="shops"
+          shape="circle"
+          size="sm"
+        />
+        <input type="hidden" {...register('ownerPhoto')} />
+      </div>
       <div className="grid grid-cols-2 gap-4">
         <div className="col-span-2"><label className="label">Shop Name *</label><input className="input" {...register('name', { required: true })} /></div>
         <div><label className="label">Owner Name *</label><input className="input" {...register('ownerName', { required: true })} /></div>
@@ -27,10 +50,27 @@ function ShopForm({ defaultValues, onSubmit, loading }) {
         </div>
         <div><label className="label">Credit Limit (Rs.)</label><input className="input" type="number" {...register('creditLimit')} /></div>
         <div></div>
-        <div><label className="label">Latitude (GPS)</label><input className="input" type="number" step="any" placeholder="e.g. 31.5204" {...register('latitude')} /></div>
-        <div><label className="label">Longitude (GPS)</label><input className="input" type="number" step="any" placeholder="e.g. 74.3587" {...register('longitude')} /></div>
-        <div className="col-span-2"><label className="label">Notes</label><textarea className="input resize-none" rows={2} {...register('notes')} /></div>
       </div>
+
+      {/* Live map location picker */}
+      <div>
+        <label className="label">Shop Location (click map, or tap 📍 for current location)</label>
+        <LocationPicker
+          latitude={lat ? Number(lat) : null}
+          longitude={lng ? Number(lng) : null}
+          onChange={(la, lo) => { setValue('latitude', la); setValue('longitude', lo) }}
+        />
+        {lat && lng ? (
+          <p className="text-xs text-gray-400 mt-1.5">📍 {Number(lat).toFixed(5)}, {Number(lng).toFixed(5)}</p>
+        ) : (
+          <p className="text-xs text-amber-600 mt-1.5">No location set yet — shop won&apos;t appear on route maps until you set one.</p>
+        )}
+        <input type="hidden" {...register('latitude')} />
+        <input type="hidden" {...register('longitude')} />
+      </div>
+
+      <div><label className="label">Notes</label><textarea className="input resize-none" rows={2} {...register('notes')} /></div>
+
       <button type="submit" disabled={loading} className="btn-primary w-full">{loading ? 'Saving...' : 'Save Shop'}</button>
     </form>
   )
@@ -59,6 +99,26 @@ export default function ShopsPage() {
   const updateM = useMutation({ mutationFn: ({ id, ...d }) => shopApi.update(id, d), onSuccess: () => { toast.success('Shop updated!'); qc.invalidateQueries(['shops']); setModal(null) }, onError: e => toast.error(getErrorMessage(e)) })
   const deleteM = useMutation({ mutationFn: (id) => shopApi.delete(id), onSuccess: () => { toast.success('Shop removed'); qc.invalidateQueries(['shops']); setDelConfirm(null) }, onError: e => toast.error(getErrorMessage(e)) })
 
+  const [revealedCreds, setRevealedCreds] = useState(null) // { code, password } — shown exactly once
+  const generateCredsM = useMutation({
+    mutationFn: (id) => shopApi.generatePortalCredentials(id),
+    onSuccess: (res) => {
+      setRevealedCreds(res.data)
+      setViewModal((v) => v ? { ...v, portalEnabled: true, portalCode: res.data.code } : v)
+      qc.invalidateQueries(['shops'])
+    },
+    onError: e => toast.error(getErrorMessage(e)),
+  })
+  const toggleAccessM = useMutation({
+    mutationFn: ({ id, enabled }) => shopApi.togglePortalAccess(id, enabled),
+    onSuccess: (res) => {
+      toast.success(res.data.portalEnabled ? 'Portal access enabled' : 'Portal access disabled')
+      setViewModal((v) => v ? { ...v, portalEnabled: res.data.portalEnabled } : v)
+      qc.invalidateQueries(['shops'])
+    },
+    onError: e => toast.error(getErrorMessage(e)),
+  })
+
   const shops = data?.shops || []
 
   return (
@@ -83,15 +143,25 @@ export default function ShopsPage() {
           {shops.map(s => (
             <div key={s.id} className="card p-5 hover:shadow-md transition-shadow">
               <div className="flex items-start justify-between mb-3">
-                <div>
-                  <h3 className="font-semibold text-gray-900">{s.name}</h3>
-                  <p className="text-sm text-gray-500">{s.ownerName}</p>
+                <div className="flex items-center gap-3">
+                  <Avatar src={s.ownerPhoto} name={s.ownerName} size="md" />
+                  <div>
+                    <h3 className="font-semibold text-gray-900">{s.name}</h3>
+                    <p className="text-sm text-gray-500">{s.ownerName}</p>
+                  </div>
                 </div>
                 <ShopTypeBadge type={s.type} />
               </div>
               <div className="space-y-1.5 text-sm text-gray-500">
-                <div className="flex items-center gap-2"><Phone className="w-3.5 h-3.5" />{s.phone}</div>
-                <div className="flex items-center gap-2"><MapPin className="w-3.5 h-3.5" />{s.address}, {s.city}</div>
+                <div className="flex items-center gap-2">
+                  <Phone className="w-3.5 h-3.5" />
+                  <a href={`tel:${s.phone}`} className="text-indigo-600 hover:underline">{s.phone}</a>
+                </div>
+                <div className="flex items-center gap-2">
+                  <MapPin className="w-3.5 h-3.5" />
+                  {s.address}, {s.city}
+                  {!s.latitude && <span className="text-amber-500 text-[11px] ml-1">(no GPS pin)</span>}
+                </div>
               </div>
               {parseFloat(s.balance) > 0 && (
                 <div className="mt-3 pt-3 border-t border-gray-100 flex items-center justify-between">
@@ -111,7 +181,7 @@ export default function ShopsPage() {
 
       <Modal open={!!modal} onClose={() => setModal(null)} title={modal === 'create' ? 'Add Shop' : 'Edit Shop'}>
         <ShopForm
-         defaultValues={modal && modal !== 'create' ? { ...modal, creditLimit: modal?.creditLimit?.toString() } : { type: 'RETAIL', city: 'Lahore', creditLimit: '0' }}
+          defaultValues={modal && modal !== 'create' ? { ...modal, creditLimit: modal?.creditLimit?.toString() } : { type: 'RETAIL', city: 'Lahore', creditLimit: '0' }}
           onSubmit={d => modal === 'create' ? createM.mutate(d) : updateM.mutate({ id: modal.id, ...d })}
           loading={createM.isPending || updateM.isPending}
         />
@@ -124,6 +194,39 @@ export default function ShopsPage() {
             <div className="grid grid-cols-2 gap-4 text-sm">
               <div className="bg-gray-50 rounded-xl p-4"><p className="text-gray-500 text-xs mb-1">Balance Due</p><p className="font-bold text-orange-600 text-xl">{formatCurrency(viewModal.balance)}</p></div>
               <div className="bg-gray-50 rounded-xl p-4"><p className="text-gray-500 text-xs mb-1">Credit Limit</p><p className="font-bold text-gray-900 text-xl">{formatCurrency(viewModal.creditLimit)}</p></div>
+            </div>
+
+            <div className="bg-gray-50 rounded-xl p-4">
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="font-semibold text-gray-900 text-sm flex items-center gap-1.5"><KeyRound className="w-4 h-4 text-indigo-600" />Shop Owner Portal</h3>
+                <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${viewModal.portalEnabled ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-200 text-gray-600'}`}>
+                  {viewModal.portalEnabled ? 'Enabled' : 'Disabled'}
+                </span>
+              </div>
+              {viewModal.portalCode && (
+                <p className="text-xs text-gray-500 mb-1">Login code: <span className="font-mono font-semibold text-gray-700">{viewModal.portalCode}</span></p>
+              )}
+              {viewModal.portalLastLoginAt && (
+                <p className="text-xs text-gray-400 mb-2">Last login: {formatDateTime(viewModal.portalLastLoginAt)}</p>
+              )}
+              <div className="flex gap-2 mt-2">
+                <button
+                  onClick={() => generateCredsM.mutate(viewModal.id)}
+                  disabled={generateCredsM.isPending}
+                  className="btn-secondary text-xs py-1.5 px-3 flex items-center gap-1.5"
+                >
+                  <KeyRound className="w-3.5 h-3.5" />{viewModal.portalCode ? 'Reset Password' : 'Generate Access'}
+                </button>
+                {viewModal.portalCode && (
+                  <button
+                    onClick={() => toggleAccessM.mutate({ id: viewModal.id, enabled: !viewModal.portalEnabled })}
+                    disabled={toggleAccessM.isPending}
+                    className="btn-secondary text-xs py-1.5 px-3 flex items-center gap-1.5"
+                  >
+                    <ShieldOff className="w-3.5 h-3.5" />{viewModal.portalEnabled ? 'Disable Access' : 'Enable Access'}
+                  </button>
+                )}
+              </div>
             </div>
             <div>
               <h3 className="font-semibold text-gray-900 mb-3">Recent Orders</h3>
@@ -149,6 +252,33 @@ export default function ShopsPage() {
           <button onClick={() => deleteM.mutate(delConfirm.id)} disabled={deleteM.isPending} className="btn-danger flex-1">Remove</button>
         </div>
       </Modal>
+
+      <Modal open={!!revealedCreds} onClose={() => setRevealedCreds(null)} title="Portal Access Generated" size="sm">
+        <p className="text-sm text-gray-600 mb-4">
+          Share these with the shop owner now — <strong>the password won&apos;t be shown again.</strong> Resetting later generates a new password.
+        </p>
+        <CredentialField label="Portal Code" value={revealedCreds?.code} />
+        <CredentialField label="Password" value={revealedCreds?.password} />
+        <button onClick={() => setRevealedCreds(null)} className="btn-primary w-full mt-4">I&apos;ve saved this</button>
+      </Modal>
+    </div>
+  )
+}
+
+function CredentialField({ label, value }) {
+  const [copied, setCopied] = useState(false)
+  const copy = () => {
+    navigator.clipboard.writeText(value)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 1500)
+  }
+  return (
+    <div className="mb-3">
+      <label className="label">{label}</label>
+      <div className="flex items-center gap-2">
+        <code className="flex-1 bg-gray-100 rounded-lg px-3 py-2 font-mono text-sm font-semibold text-gray-800">{value}</code>
+        <button onClick={copy} className="btn-secondary px-3 py-2">{copied ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4" />}</button>
+      </div>
     </div>
   )
 }

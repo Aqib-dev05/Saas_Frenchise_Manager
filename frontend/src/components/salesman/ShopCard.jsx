@@ -1,5 +1,6 @@
 'use client'
 import { formatCurrency } from '@/lib/utils'
+import Avatar from '@/components/ui/Avatar'
 import { MapPin, Phone, ShoppingCart, CheckCircle, Clock, AlertTriangle, ChevronRight } from 'lucide-react'
 
 export default function ShopCard({ routeShop, index, isActive, onClick }) {
@@ -16,9 +17,12 @@ export default function ShopCard({ routeShop, index, isActive, onClick }) {
   }[shop.type] || 'bg-gray-100 text-gray-700'
 
   return (
-    <button
+    <div
+      role="button"
+      tabIndex={0}
       onClick={onClick}
-      className={`w-full text-left rounded-2xl border-2 p-4 transition-all hover:shadow-md ${
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onClick?.() }}
+      className={`w-full text-left rounded-2xl border-2 p-4 transition-all hover:shadow-md cursor-pointer ${
         isActive
           ? 'border-indigo-500 bg-indigo-50/50 shadow-md'
           : hasOrder
@@ -37,12 +41,22 @@ export default function ShopCard({ routeShop, index, isActive, onClick }) {
         {/* Shop info */}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
+            <Avatar src={shop.ownerPhoto} name={shop.ownerName} size="xs" />
             <h3 className="font-semibold text-gray-900 text-sm">{shop.name}</h3>
             <span className={`text-[11px] px-2 py-0.5 rounded-full font-medium ${shopTypeColor}`}>{shop.type}</span>
           </div>
           <p className="text-xs text-gray-500 mt-0.5">{shop.ownerName}</p>
           <div className="flex items-center gap-3 mt-1.5 text-xs text-gray-400 flex-wrap">
-            <span className="flex items-center gap-1"><Phone className="w-3 h-3" />{shop.phone}</span>
+            <span className="flex items-center gap-1">
+              <Phone className="w-3 h-3" />
+              <a
+                href={`tel:${shop.phone}`}
+                onClick={(e) => e.stopPropagation()}
+                className="text-indigo-600 hover:text-indigo-700 hover:underline"
+              >
+                {shop.phone}
+              </a>
+            </span>
             <span className="flex items-center gap-1"><MapPin className="w-3 h-3" />{shop.address}</span>
           </div>
 
@@ -71,6 +85,6 @@ export default function ShopCard({ routeShop, index, isActive, onClick }) {
 
         <ChevronRight className={`w-4 h-4 flex-shrink-0 mt-1 ${isActive ? 'text-indigo-500' : 'text-gray-300'}`} />
       </div>
-    </button>
+    </div>
   )
 }

@@ -5,9 +5,9 @@ import Link from 'next/link'
 import { logout, selectUser, selectOrg, selectSub } from '@/store/slices/authSlice'
 import {
   LayoutDashboard, Package, Store, Map, ShoppingCart, CreditCard,
-  FileText, Users, LogOut, Truck, Wallet, Building2, ChevronRight, AlertTriangle
+  FileText, Users, LogOut, Truck, Wallet, Building2, ChevronRight, AlertTriangle, FileSpreadsheet, History
 } from 'lucide-react'
-import { getInitials } from '@/lib/utils'
+import Avatar from '@/components/ui/Avatar'
 
 const ADMIN_NAV = [
   { href: '/admin', label: 'Dashboard', icon: LayoutDashboard, exact: true },
@@ -18,6 +18,8 @@ const ADMIN_NAV = [
   { href: '/admin/payments', label: 'Payments', icon: CreditCard },
   { href: '/admin/invoices', label: 'Invoices', icon: FileText },
   { href: '/admin/users', label: 'Team', icon: Users },
+  { href: '/admin/exports', label: 'Reports & Exports', icon: FileSpreadsheet },
+  { href: '/admin/audit', label: 'Audit Log', icon: History },
 ]
 
 const SALESMAN_NAV = [
@@ -108,9 +110,7 @@ export default function Sidebar() {
       {/* User footer */}
       <div className="p-3 border-t border-slate-700/50">
         <div className="flex items-center gap-3 px-2 py-2">
-          <div className="w-8 h-8 bg-indigo-600 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0">
-            {getInitials(user?.name)}
-          </div>
+          <Avatar src={user?.avatar} name={user?.name} size="sm" />
           <div className="flex-1 min-w-0">
             <p className="text-white text-xs font-semibold truncate">{user?.name}</p>
             <p className="text-slate-400 text-[11px] truncate">{user?.email}</p>

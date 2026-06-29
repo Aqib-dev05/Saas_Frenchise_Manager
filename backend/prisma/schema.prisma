@@ -133,7 +133,12 @@ model User {
   password       String
   role           Role         @default(SALESMAN)
   phone          String?
+  avatar         String?
   isActive       Boolean      @default(true)
+  resetOtpHash       String?
+  resetOtpExpiresAt  DateTime?
+  resetOtpAttempts   Int       @default(0)
+  resetOtpRequestedAt DateTime?
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
 
@@ -157,6 +162,7 @@ model Product {
   stock          Int          @default(0)
   minStock       Int          @default(10)
   unit           String       @default("piece")
+  images         String[]     @default([]) // max 2 enforced in product.controller.js
   isActive       Boolean      @default(true)
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
@@ -181,8 +187,15 @@ model Shop {
   type           ShopType     @default(RETAIL)
   balance        Decimal      @default(0) @db.Decimal(10, 2)
   creditLimit    Decimal      @default(0) @db.Decimal(10, 2)
+  ownerPhoto     String?
   isActive       Boolean      @default(true)
   notes          String?
+  // Shop-owner self-service portal (separate auth track from staff Users —
+  // no `role`, logs in with portalCode + a server-generated password).
+  portalEnabled      Boolean   @default(false)
+  portalCode         String?   @unique
+  portalPasswordHash String?
+  portalLastLoginAt  DateTime?
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
 
@@ -284,6 +297,11 @@ model Invoice {
   paid      Decimal   @default(0) @db.Decimal(10, 2)
   dueDate   DateTime?
   isPaid    Boolean   @default(false)
+  // Cloudinary-cached generated PDF — regenerated whenever the invoice data
+  // changes after this was last generated (see pdfGeneratedAt vs updatedAt).
+  pdfUrl         String?
+  pdfPublicId    String?
+  pdfGeneratedAt DateTime?
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 }
@@ -303,4 +321,26 @@ model Payment {
   createdAt      DateTime     @default(now())
 
   @@index([organizationId])
+}
+
+// Append-only activity trail — who did what, when, from where. There is
+// intentionally no update/delete path for these rows anywhere in the app;
+// an audit log that admins can edit or clear isn't an audit log.
+model AuditLog {
+  id             String   @id @default(cuid())
+  organizationId String
+  userId         String?  // null for system/webhook-originated entries
+  userName       String?  // denormalized so the log still reads fine after a user is deleted
+  userRole       Role?
+  action         String   // CREATE | UPDATE | DELETE | STATUS_CHANGE | LOGIN | REGISTER | PASSWORD_RESET ...
+  resource       String   // Product | Shop | Order | Payment | User | Route | Invoice | Subscription | Auth ...
+  resourceId     String?
+  description    String?
+  changes        Json?    // sanitized request body / patch — passwords & OTP fields stripped before write
+  ipAddress      String?
+  createdAt      DateTime @default(now())
+
+  @@index([organizationId, createdAt])
+  @@index([organizationId, resource])
+  @@index([organizationId, userId])
 }

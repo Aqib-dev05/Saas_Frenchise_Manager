@@ -8,12 +8,27 @@ import { getErrorMessage, formatDate } from '@/lib/utils'
 import { RoleBadge } from '@/components/ui/Badge'
 import Modal from '@/components/ui/Modal'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
+import Avatar from '@/components/ui/Avatar'
+import ImageUpload from '@/components/ui/ImageUpload'
 import { Plus, Edit2, UserX, UserCheck } from 'lucide-react'
 
 function UserForm({ defaultValues, onSubmit, loading, isEdit }) {
-  const { register, handleSubmit, formState: { errors } } = useForm({ defaultValues })
+  const { register, handleSubmit, watch, setValue, formState: { errors } } = useForm({ defaultValues })
+  const avatar = watch('avatar')
+
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+      <div>
+        <label className="label">Profile Picture</label>
+        <ImageUpload
+          value={avatar}
+          onChange={(url) => setValue('avatar', url)}
+          folder="avatars"
+          shape="circle"
+          size="sm"
+        />
+        <input type="hidden" {...register('avatar')} />
+      </div>
       <div><label className="label">Full Name *</label><input className="input" {...register('name', { required: true })} /></div>
       <div><label className="label">Email *</label><input className="input" type="email" {...register('email', { required: true })} /></div>
       <div><label className="label">{isEdit ? 'New Password (leave blank to keep)' : 'Password *'}</label>
@@ -54,16 +69,14 @@ export default function UsersPage() {
           {users.map(u => (
             <div key={u.id} className={`card p-5 ${!u.isActive ? 'opacity-60' : ''}`}>
               <div className="flex items-center gap-3 mb-3">
-                <div className="w-10 h-10 bg-indigo-600 rounded-full flex items-center justify-center text-white font-bold text-sm">
-                  {u.name.split(' ').map(n=>n[0]).join('').toUpperCase().slice(0,2)}
-                </div>
+                <Avatar src={u.avatar} name={u.name} size="md" />
                 <div className="flex-1 min-w-0">
                   <p className="font-semibold text-gray-900 truncate">{u.name}</p>
                   <p className="text-xs text-gray-400 truncate">{u.email}</p>
                 </div>
                 <RoleBadge role={u.role} />
               </div>
-              {u.phone && <p className="text-sm text-gray-500 mb-2">📞 {u.phone}</p>}
+              {u.phone && <p className="text-sm text-gray-500 mb-2">📞 <a href={`tel:${u.phone}`} className="text-indigo-600 hover:underline">{u.phone}</a></p>}
               <p className="text-xs text-gray-400 mb-4">Joined {formatDate(u.createdAt)}</p>
               <div className="flex gap-2 border-t border-gray-100 pt-3">
                 <button onClick={() => setModal(u)} className="flex-1 btn-secondary text-xs py-1.5 flex items-center justify-center gap-1"><Edit2 className="w-3.5 h-3.5" />Edit</button>
@@ -79,10 +92,10 @@ export default function UsersPage() {
 
       <Modal open={!!modal} onClose={() => setModal(null)} title={modal === 'create' ? 'Add Team Member' : 'Edit Member'} size="sm">
         <UserForm
-          defaultValues={modal && modal !== 'create' ? { name: modal?.name, email: modal?.email, role: modal?.role, phone: modal?.phone } : {}}
+          defaultValues={modal && modal !== 'create' ? { name: modal?.name, email: modal?.email, role: modal?.role, phone: modal?.phone, avatar: modal?.avatar } : {}}
           onSubmit={d => modal === 'create' ? createM.mutate(d) : updateM.mutate({ id: modal.id, ...d })}
           loading={createM.isPending || updateM.isPending}
-         isEdit={!!modal && modal !== 'create'}
+          isEdit={!!modal && modal !== 'create'}
         />
       </Modal>
     </div>

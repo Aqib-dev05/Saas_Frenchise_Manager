@@ -3,6 +3,7 @@ const express = require('express')
 const cors = require('cors')
 const helmet = require('helmet')
 const morgan = require('morgan')
+const compression = require('compression')
 
 const routes = require('./routes')
 
@@ -10,6 +11,7 @@ const app = express()
 
 app.use(helmet())
 app.use(cors({ origin: process.env.FRONTEND_URL || 'http://localhost:3000', credentials: true }))
+app.use(compression()) // gzip every JSON response — free bandwidth/speed win
 app.use(morgan('dev'))
 
 // Capture raw body for Paddle webhook signature verification
@@ -21,6 +23,7 @@ app.use('/api/paddle/webhook', express.raw({ type: 'application/json' }), (req, 
 
 app.use(express.json({ limit: '10mb' }))
 app.use(express.urlencoded({ extended: true }))
+app.use(require('./middleware/audit.middleware'))
 
 app.get('/health', (req, res) => res.json({ status: 'OK', timestamp: new Date().toISOString() }))
 app.use('/api', routes)

@@ -15,7 +15,7 @@ export default function PaymentsPage() {
   const { register, handleSubmit, reset, formState: { errors } } = useForm()
 
   const { data, isLoading } = useQuery({ queryKey: ['payments'], queryFn: () => paymentApi.getAll({ limit: 200 }).then(r => r.data) })
-  const { data: shopsData } = useQuery({ queryKey: ['shops-all-for-payments'], queryFn: () => shopApi.getAll({ limit: 500 }).then(r => r.data) })
+  const { data: shopsData } = useQuery({ queryKey: ['shops-lookup-payments'], queryFn: () => shopApi.getLookup({ limit: 500 }).then(r => r.data) })
 
   const createM = useMutation({
     mutationFn: paymentApi.create,
