@@ -2,7 +2,7 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
-import { orderApi, invoiceApi } from '@/lib/api'
+import { orderApi, invoiceApi, billApi } from '@/lib/api'
 import { formatCurrency, formatDateTime, getErrorMessage, downloadBlob, ORDER_STATUSES } from '@/lib/utils'
 import { StatusBadge } from '@/components/ui/Badge'
 import Modal from '@/components/ui/Modal'
@@ -30,6 +30,12 @@ export default function OrdersPage() {
   const pdfM = useMutation({
     mutationFn: (order) => invoiceApi.downloadPdf(order.id),
     onSuccess: (res, order) => downloadBlob(res.data, `${order.invoice?.invoiceNo || order.orderNo}.pdf`),
+    onError: e => toast.error(getErrorMessage(e)),
+  })
+
+  const billM = useMutation({
+    mutationFn: (order) => billApi.download(order.id),
+    onSuccess: (res, order) => downloadBlob(res.data, `bill-${order.orderNo}.pdf`),
     onError: e => toast.error(getErrorMessage(e)),
   })
 
@@ -91,6 +97,16 @@ export default function OrdersPage() {
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-1.5 flex-wrap">
                       <button onClick={() => setViewOrder(o)} className="p-1.5 text-gray-400 hover:text-indigo-600 rounded-lg hover:bg-indigo-50"><Eye className="w-4 h-4" /></button>
+                      {/* Bill — any order status */}
+                      <button
+                        onClick={() => billM.mutate(o)}
+                        disabled={billM.isPending && billM.variables?.id === o.id}
+                        title="Download shopkeeper bill"
+                        className="p-1.5 text-gray-400 hover:text-indigo-600 rounded-lg hover:bg-indigo-50 disabled:opacity-50"
+                      >
+                        <Package className="w-4 h-4" />
+                      </button>
+                      {/* Formal invoice PDF — only when invoice exists */}
                       {o.invoice && (
                         <button
                           onClick={() => pdfM.mutate(o)}
@@ -150,6 +166,14 @@ export default function OrdersPage() {
               </table>
             </div>
             <div className="flex gap-2 flex-wrap border-t pt-4">
+              {/* Bill — always available */}
+              <button
+                onClick={() => billM.mutate(viewOrder)}
+                disabled={billM.isPending && billM.variables?.id === viewOrder.id}
+                className="flex items-center gap-1.5 text-xs bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded-lg disabled:opacity-50"
+              >
+                <Package className="w-3.5 h-3.5" />{billM.isPending && billM.variables?.id === viewOrder.id ? 'Loading...' : 'Download Bill'}
+              </button>
               {viewOrder.invoice && (
                 <button
                   onClick={() => pdfM.mutate(viewOrder)}

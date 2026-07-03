@@ -156,6 +156,13 @@ export const invoiceApi = {
   clearHistory: () => api.delete('/invoices/history'),
 }
 
+// ── Bills (shopkeeper-facing receipt, works on any order status) ────────────
+// Separate from the formal invoice — no caching, no Cloudinary. Built fresh
+// on demand. Salesman: own orders only. Admin/Delivery: any order in org.
+export const billApi = {
+  download: (orderId) => api.get(`/bills/${orderId}`, { responseType: 'blob' }),
+}
+
 // ── Export (Admin only) ────────────────────────────────────────────────────────
 export const exportApi = {
   // type: products | users | shops | credit-report | payments | orders |
@@ -167,4 +174,14 @@ export const exportApi = {
 export const auditApi = {
   getAll:     (params) => api.get('/audit-logs', { params }),
   getFilters: ()       => api.get('/audit-logs/filters'),
+}
+
+// ── Skipped Visits ─────────────────────────────────────────────────────────────
+// Salesman creates (marks a shop as "couldn't visit today").
+// Admin + Salesman read (admin sees all org's, salesman sees own).
+// Admin or creating Salesman resolves (follow-up done).
+export const skippedVisitApi = {
+  create:  (d)  => api.post('/skipped-visits', d),
+  getAll:  (p)  => api.get('/skipped-visits', { params: p }),
+  resolve: (id) => api.put(`/skipped-visits/${id}/resolve`),
 }

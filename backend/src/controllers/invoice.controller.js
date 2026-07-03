@@ -37,15 +37,17 @@ const fetchCachedPdfBuffer = async (url) => {
 }
 
 const COLORS = {
-  primary: '#4338ca',
-  dark: '#111827',
-  gray: '#6b7280',
-  lightGray: '#9ca3af',
-  border: '#e5e7eb',
-  headerBg: '#f5f3ff',
-  green: '#059669',
-  amber: '#d97706',
-  red: '#dc2626',
+  primary:    '#4338ca',
+  dark:       '#111827',
+  gray:       '#6b7280',
+  lightGray:  '#9ca3af',
+  border:     '#e5e7eb',
+  headerBg:   '#f5f3ff',
+  green:      '#059669',
+  amber:      '#d97706',
+  amberBg:    '#fffbeb',
+  amberBorder:'#fde68a',
+  red:        '#dc2626',
 }
 
 const PAGE_MARGIN = 50
@@ -58,7 +60,7 @@ const getInvoiceData = async (orderId, extraWhere) => {
   const order = await prisma.order.findFirst({
     where: { id: orderId, ...extraWhere },
     include: {
-      shop: true,
+      shop: { select: { id: true, name: true, ownerName: true, phone: true, address: true, city: true, balance: true, type: true } },
       salesman: { select: { name: true, phone: true } },
       items: { include: { product: { select: { name: true, unit: true, sku: true } } } },
       invoice: true,
@@ -134,9 +136,27 @@ const drawBillToAndStatus = (doc, { order, pageWidth }, startY) => {
   y += 12
   const addrHeight = doc.heightOfString(order.shop.address || '', { width: colWidth })
   doc.text(`${order.shop.address || ''}${order.shop.city ? ', ' + order.shop.city : ''}`, PAGE_MARGIN, y, { width: colWidth })
-  y += Math.max(addrHeight, 12)
+  y += Math.max(addrHeight, 12) + 8
 
-  return y + 18
+  // Previous outstanding balance box — shown only when the shop has a running
+  // balance. This is the credit they owed BEFORE this order, so the shopkeeper
+  // can see their full picture at a glance without having to ask.
+  const prevBalance = Number(order.shop.balance || 0)
+  if (prevBalance > 0) {
+    const boxW = 190
+    const boxH = 38
+    doc.roundedRect(PAGE_MARGIN, y, boxW, boxH, 5)
+      .fillColor('#fffbeb').fill()
+    doc.roundedRect(PAGE_MARGIN, y, boxW, boxH, 5)
+      .strokeColor('#fde68a').lineWidth(1).stroke()
+    doc.font('Helvetica').fontSize(7.5).fillColor(COLORS.amber)
+      .text('PREVIOUS OUTSTANDING BALANCE', PAGE_MARGIN + 8, y + 7, { width: boxW - 16 })
+    doc.font('Helvetica-Bold').fontSize(13).fillColor(COLORS.amber)
+      .text(money(prevBalance), PAGE_MARGIN + 8, y + 18, { width: boxW - 16 })
+    y += boxH + 10
+  }
+
+  return y + 8
 }
 
 const TABLE_COLS = [
@@ -198,24 +218,39 @@ const drawItemsTable = (doc, items, startY, pageWidth, pageBottom) => {
 
 const drawTotals = (doc, order, startY, pageWidth) => {
   const due = Number(order.invoice.amount) - Number(order.invoice.paid)
-  const boxWidth = 220
+  const prevBalance = Number(order.shop.balance || 0)
+  const boxWidth = 240
   const x = PAGE_MARGIN + pageWidth - boxWidth
   let y = startY
 
   const row = (label, value, opts = {}) => {
     doc.font(opts.bold ? 'Helvetica-Bold' : 'Helvetica').fontSize(opts.size || 9.5)
       .fillColor(opts.color || COLORS.gray)
-      .text(label, x, y, { width: boxWidth - 100 })
+      .text(label, x, y, { width: boxWidth - 110 })
     doc.fillColor(opts.valueColor || opts.color || COLORS.dark)
-      .text(opts.valueText ?? value, x + boxWidth - 100, y, { width: 100, align: 'right' })
+      .text(opts.valueText ?? value, x + boxWidth - 110, y, { width: 110, align: 'right' })
     y += opts.gap || 16
   }
 
+  // This invoice
   row('Order Total', money(order.totalAmount))
   row('Amount Paid', money(order.invoice.paid), { color: COLORS.green, valueColor: COLORS.green })
-  doc.moveTo(x, y).lineTo(x + boxWidth, y).strokeColor(COLORS.border).stroke()
-  y += 8
-  row('Balance Due', money(due), { bold: true, size: 12, color: COLORS.dark, valueColor: due > 0 ? COLORS.red : COLORS.green })
+  doc.moveTo(x, y).lineTo(x + boxWidth, y).strokeColor(COLORS.border).stroke(); y += 8
+  row('Balance Due (This Order)', money(due), { bold: true, size: 10.5, color: COLORS.dark, valueColor: due > 0 ? COLORS.red : COLORS.green })
+
+  // Running account total — only shown for CREDIT/WHOLESALE shops that carry a balance.
+  // This makes the invoice self-contained: shopkeeper sees exactly how much
+  // they owe in total, not just for this order.
+  if (prevBalance > 0) {
+    y += 8
+    doc.moveTo(x, y).lineTo(x + boxWidth, y).strokeColor(COLORS.amberBorder || '#fde68a').dash(3, { space: 3 }).stroke()
+    doc.undash(); y += 8
+    row('Previous Balance', money(prevBalance), { color: COLORS.amber, valueColor: COLORS.amber })
+    const totalOutstanding = due + prevBalance
+    doc.moveTo(x, y).lineTo(x + boxWidth, y).strokeColor(COLORS.amber).lineWidth(1.5).stroke()
+    doc.lineWidth(1); y += 8
+    row('Total Account Balance', money(totalOutstanding), { bold: true, size: 12, color: COLORS.amber, valueColor: COLORS.amber })
+  }
 
   return y + 20
 }

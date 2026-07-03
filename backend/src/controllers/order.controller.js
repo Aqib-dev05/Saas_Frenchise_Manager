@@ -107,9 +107,12 @@ const createOrder = async (req, res, next) => {
     for (const item of items) {
       const product = await prisma.product.findFirst({ where: { id: item.productId, organizationId: ORG(req), isActive: true } })
       if (!product) return res.status(400).json({ message: `Product not found: ${item.productId}` })
-      const subtotal = Number(product.price) * Number(item.quantity)
+      // Accept a salesman-supplied price (different shops often pay different rates,
+      // or price is negotiated on the spot). Fall back to base price if not provided.
+      const itemPrice = item.price && Number(item.price) > 0 ? Number(item.price) : Number(product.price)
+      const subtotal = itemPrice * Number(item.quantity)
       totalAmount += subtotal
-      orderItems.push({ productId: item.productId, quantity: Number(item.quantity), price: Number(product.price), subtotal })
+      orderItems.push({ productId: item.productId, quantity: Number(item.quantity), price: itemPrice, subtotal })
     }
 
     const order = await prisma.order.create({
@@ -176,9 +179,10 @@ const updateOrder = async (req, res, next) => {
     for (const item of items) {
       const p = await prisma.product.findFirst({ where: { id: item.productId, organizationId: ORG(req) } })
       if (!p) return res.status(400).json({ message: 'Product not found' })
-      const subtotal = Number(p.price) * Number(item.quantity)
+      const itemPrice = item.price && Number(item.price) > 0 ? Number(item.price) : Number(p.price)
+      const subtotal = itemPrice * Number(item.quantity)
       totalAmount += subtotal
-      orderItems.push({ productId: item.productId, quantity: Number(item.quantity), price: Number(p.price), subtotal })
+      orderItems.push({ productId: item.productId, quantity: Number(item.quantity), price: itemPrice, subtotal })
     }
     await prisma.orderItem.deleteMany({ where: { orderId: req.params.id } })
     const updated = await prisma.order.update({

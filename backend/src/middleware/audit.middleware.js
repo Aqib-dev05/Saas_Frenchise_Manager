@@ -7,6 +7,7 @@ const RESOURCE_LABELS = {
   products: 'Product', shops: 'Shop', routes: 'Route', orders: 'Order',
   payments: 'Payment', deliveries: 'Delivery', users: 'User',
   organization: 'Organization', subscription: 'Subscription', invoices: 'Invoice',
+  'skipped-visits': 'SkippedVisit',
 }
 
 const ACTION_BY_METHOD = { POST: 'CREATE', PUT: 'UPDATE', PATCH: 'UPDATE', DELETE: 'DELETE' }
@@ -31,6 +32,7 @@ const DESC_RULES = [
   { test: /\/invoices\/history$/, resource: 'Invoice', action: 'DELETE', desc: () => 'Cleared cached invoice PDFs' },
   { test: /\/shops\/[^/]+\/portal\/credentials$/, resource: 'Shop', action: 'UPDATE', desc: () => 'Generated/rotated shop portal credentials' },
   { test: /\/shops\/[^/]+\/portal\/toggle$/, resource: 'Shop', action: 'UPDATE', desc: (req) => `Shop portal access ${req.body?.enabled ? 'enabled' : 'disabled'}` },
+  { test: /\/skipped-visits\/[^/]+\/resolve$/, resource: 'SkippedVisit', action: 'UPDATE', desc: () => 'Marked skipped shop visit as resolved' },
 ]
 
 const buildEntry = (req, path, capturedBody) => {

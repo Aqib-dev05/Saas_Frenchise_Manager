@@ -35,10 +35,11 @@ export const shopPortalAuthApi = {
 }
 
 export const shopPortalDataApi = {
-  getMe:      ()      => shopPortalApi.get('/shop-portal/me'),
+  getMe:      ()       => shopPortalApi.get('/shop-portal/me'),
   getOrders:  (params) => shopPortalApi.get('/shop-portal/orders', { params }),
   getOrder:   (id)     => shopPortalApi.get(`/shop-portal/orders/${id}`),
   getPayments: ()      => shopPortalApi.get('/shop-portal/payments'),
   getLedger:  ()       => shopPortalApi.get('/shop-portal/ledger'),
   downloadInvoicePdf: (orderId) => shopPortalApi.get(`/shop-portal/invoices/${orderId}/pdf`, { responseType: 'blob' }),
+  downloadBill:       (orderId) => shopPortalApi.get(`/shop-portal/bills/${orderId}`, { responseType: 'blob' }),
 }

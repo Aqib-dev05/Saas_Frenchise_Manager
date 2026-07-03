@@ -52,6 +52,15 @@ enum SubscriptionStatus {
   PAUSED
 }
 
+// Reason a salesman could not visit a shop on their route that day.
+// Used by SkippedVisit to record follow-up-needed shops.
+enum SkipReason {
+  SHOP_CLOSED
+  OWNER_UNAVAILABLE
+  PAYMENT_DISPUTE
+  OTHER
+}
+
 // ───────────── SAAS MODELS ─────────────
 
 model Organization {
@@ -66,13 +75,14 @@ model Organization {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  users        User[]
-  products     Product[]
-  shops        Shop[]
-  routes       Route[]
-  orders       Order[]
-  payments     Payment[]
-  subscription Subscription?
+  users         User[]
+  products      Product[]
+  shops         Shop[]
+  routes        Route[]
+  orders        Order[]
+  payments      Payment[]
+  subscription  Subscription?
+  skippedVisits SkippedVisit[]
 
   @@index([slug])
 }
@@ -142,9 +152,10 @@ model User {
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
 
-  routes     Route[]
-  orders     Order[]    @relation("SalesmanOrders")
-  deliveries Delivery[] @relation("DeliveryPerson")
+  routes        Route[]
+  orders        Order[]    @relation("SalesmanOrders")
+  deliveries    Delivery[] @relation("DeliveryPerson")
+  skippedVisits SkippedVisit[] @relation("SalesmanSkips")
 
   @@index([organizationId])
 }
@@ -199,9 +210,10 @@ model Shop {
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
 
-  routeShops RouteShop[]
-  orders     Order[]
-  payments   Payment[]
+  routeShops    RouteShop[]
+  orders        Order[]
+  payments      Payment[]
+  skippedVisits SkippedVisit[]
 
   @@index([organizationId])
 }
@@ -219,8 +231,9 @@ model Route {
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
 
-  routeShops RouteShop[]
-  orders     Order[]
+  routeShops    RouteShop[]
+  orders        Order[]
+  skippedVisits SkippedVisit[]
 
   @@index([organizationId])
 }
@@ -343,4 +356,30 @@ model AuditLog {
   @@index([organizationId, createdAt])
   @@index([organizationId, resource])
   @@index([organizationId, userId])
+}
+
+// Records a salesman's failed attempt to visit a shop on a route day.
+// One record per shop per salesman per day (upsert on create).
+// Admin resolves these after follow-up (phone call, rescheduled visit).
+// Append-friendly: resolveSkip just sets isResolved=true/resolvedAt — no deletes.
+model SkippedVisit {
+  id             String       @id @default(cuid())
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  organizationId String
+  shop           Shop         @relation(fields: [shopId], references: [id])
+  shopId         String
+  salesman       User         @relation("SalesmanSkips", fields: [salesmanId], references: [id])
+  salesmanId     String
+  route          Route?       @relation(fields: [routeId], references: [id])
+  routeId        String?
+  reason         SkipReason
+  notes          String?
+  skippedDate    DateTime     @default(now())
+  isResolved     Boolean      @default(false)
+  resolvedAt     DateTime?
+  createdAt      DateTime     @default(now())
+
+  @@index([organizationId, isResolved])
+  @@index([organizationId, skippedDate])
+  @@index([shopId])
 }

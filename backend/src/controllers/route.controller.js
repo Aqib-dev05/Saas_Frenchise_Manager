@@ -49,9 +49,24 @@ const getTodayRoute = async (req, res, next) => {
       : []
     const orderByShopId = new Map(todaysOrders.map(o => [o.shopId, o]))
 
+    // Batched skip lookup for today — same pattern as orders above.
+    // Only the reason + notes are needed on the salesman's route view;
+    // full details are available via GET /api/skipped-visits if needed.
+    const todaysSkips = allShopIds.length
+      ? await prisma.skippedVisit.findMany({
+          where: { shopId: { in: allShopIds }, salesmanId: req.user.userId, skippedDate: { gte: todayStart, lte: todayEnd } },
+          select: { id: true, shopId: true, reason: true, notes: true, isResolved: true },
+        })
+      : []
+    const skipByShopId = new Map(todaysSkips.map(s => [s.shopId, s]))
+
     const enriched = routes.map(route => ({
       ...route,
-      routeShops: route.routeShops.map(rs => ({ ...rs, todayOrder: orderByShopId.get(rs.shopId) || null })),
+      routeShops: route.routeShops.map(rs => ({
+        ...rs,
+        todayOrder: orderByShopId.get(rs.shopId) || null,
+        todaySkip: skipByShopId.get(rs.shopId) || null,
+      })),
     }))
     res.json(enriched)
   } catch (err) { next(err) }

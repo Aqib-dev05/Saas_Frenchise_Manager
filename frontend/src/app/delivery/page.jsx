@@ -234,7 +234,11 @@ export default function DeliveryPage() {
   const manifest = {}
   orders.forEach(order => {
     order.items?.forEach(item => {
-      const key = item.productId
+      // item.productId is NOT returned by ORDER_ITEM_SELECT (only product.id is).
+      // Using item.productId would be undefined for every item, collapsing the
+      // whole manifest into a single object key — the actual bug we're fixing.
+      const key = item.product?.id
+      if (!key) return
       if (!manifest[key]) {
         manifest[key] = { name: item.product?.name, unit: item.product?.unit, totalQty: 0, totalValue: 0 }
       }

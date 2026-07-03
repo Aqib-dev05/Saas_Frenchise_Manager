@@ -93,14 +93,12 @@ const getPayments = async (req, res, next) => {
   } catch (err) { next(err) }
 }
 
-// Reconstructs a chronological, running-balance ledger from the same two
-// events that actually move `shop.balance` in the live system (see
-// order.controller.js#updateOrderStatus and payment.controller.js#createPayment):
-//   - an order's balance debit only happens once, on DELIVERED, and only for
-//     CREDIT/WHOLESALE shops, for the unpaid remainder at that moment
-//   - every payment is a credit, for any shop type
-// Mirroring those exact conditions keeps the ledger's running total in sync
-// with the real `shop.balance` rather than drifting from it over time.
+
+// Reconstructs a full chronological account ledger.
+// Balance-affecting entries (ORDER_DEBIT and PAYMENT) mirror the exact rules
+// in order.controller.js and payment.controller.js so the running total here
+// always matches shop.balance in the DB.
+// All other orders are shown as ORDER_INFO — visible history, no balance change.
 const getLedger = async (req, res, next) => {
   try {
     const shop = await prisma.shop.findUnique({ where: { id: SHOP_ID(req) } })
@@ -108,39 +106,84 @@ const getLedger = async (req, res, next) => {
 
     const tracksBalance = ['CREDIT', 'WHOLESALE'].includes(shop.type)
 
-    const [deliveredOrders, payments] = await Promise.all([
-      tracksBalance
-        ? prisma.order.findMany({
-            where: { shopId: shop.id, status: 'DELIVERED' },
-            include: { delivery: { select: { deliveredAt: true } } },
-            orderBy: { orderDate: 'asc' },
-          })
-        : [],
-      prisma.payment.findMany({ where: { shopId: shop.id }, orderBy: { receivedAt: 'asc' } }),
+    const [allOrders, payments] = await Promise.all([
+      prisma.order.findMany({
+        where: { shopId: shop.id },
+        include: {
+          items: { include: { product: { select: { name: true, unit: true } } } },
+          delivery: { select: { deliveredAt: true } },
+          invoice: { select: { invoiceNo: true, isPaid: true } },
+        },
+        orderBy: { orderDate: 'asc' },
+      }),
+      prisma.payment.findMany({
+        where: { shopId: shop.id },
+        orderBy: { receivedAt: 'asc' },
+      }),
     ])
 
     const entries = []
-    for (const o of deliveredOrders) {
+
+    for (const o of allOrders) {
       const unpaid = Number(o.totalAmount) - Number(o.paidAmount)
-      if (unpaid <= 0) continue
+      const isDelivered = o.status === 'DELIVERED'
+      const isBalanceDebit = tracksBalance && isDelivered && unpaid > 0
+      const date = isDelivered && o.delivery?.deliveredAt ? o.delivery.deliveredAt : o.orderDate
+
       entries.push({
-        type: 'ORDER', date: o.delivery?.deliveredAt || o.updatedAt, orderId: o.id, orderNo: o.orderNo,
-        description: `Order ${o.orderNo} delivered`, debit: unpaid, credit: 0,
+        type: isBalanceDebit ? 'ORDER_DEBIT' : 'ORDER_INFO',
+        date,
+        orderId: o.id,
+        orderNo: o.orderNo,
+        orderStatus: o.status,
+        invoiceNo: o.invoice?.invoiceNo || null,
+        isPaid: o.invoice?.isPaid || false,
+        itemsSummary: o.items.map(i => `${i.product?.name} ×${i.quantity}`).join(', '),
+        itemCount: o.items.length,
+        description: isDelivered
+          ? `Delivery received — ${o.orderNo}${o.invoice?.invoiceNo ? ' / ' + o.invoice.invoiceNo : ''}`
+          : `Order ${o.orderNo} (${o.status.toLowerCase()})`,
+        debit: isBalanceDebit ? unpaid : 0,
+        credit: 0,
+        totalAmount: Number(o.totalAmount),
       })
     }
+
     for (const p of payments) {
+      const typeLabels = { CASH: 'Cash', CREDIT: 'Credit', BANK_TRANSFER: 'Bank Transfer', CHEQUE: 'Cheque' }
       entries.push({
-        type: 'PAYMENT', date: p.receivedAt, paymentId: p.id,
-        description: `Payment received${p.reference ? ` — ${p.reference}` : ''} (${p.type})`, debit: 0, credit: Number(p.amount),
+        type: 'PAYMENT',
+        date: p.receivedAt,
+        paymentId: p.id,
+        paymentType: p.type,
+        paymentTypeLabel: typeLabels[p.type] || p.type,
+        reference: p.reference || null,
+        receivedBy: p.receivedBy || null,
+        description: `Payment — ${typeLabels[p.type] || p.type}${p.reference ? ' / ' + p.reference : ''}`,
+        debit: 0,
+        credit: Number(p.amount),
+        totalAmount: 0,
       })
     }
+
     entries.sort((a, b) => new Date(a.date) - new Date(b.date))
 
     let running = 0
-    const ledger = entries.map((e) => { running += e.debit - e.credit; return { ...e, runningBalance: running } })
+    const ledger = entries.map((e) => {
+      if (e.type === 'ORDER_DEBIT' || e.type === 'PAYMENT') running += e.debit - e.credit
+      return { ...e, runningBalance: running }
+    })
 
+    const deliveredOrders = allOrders.filter(o => o.status === 'DELIVERED')
     res.json({
       shop: { id: shop.id, name: shop.name, type: shop.type, balance: shop.balance, creditLimit: shop.creditLimit, tracksBalance },
+      summary: {
+        totalOrders: allOrders.length,
+        deliveredOrders: deliveredOrders.length,
+        totalBilled: deliveredOrders.reduce((s, o) => s + Number(o.totalAmount), 0),
+        totalPaid: payments.reduce((s, p) => s + Number(p.amount), 0),
+        currentBalance: Number(shop.balance),
+      },
       entries: ledger,
     })
   } catch (err) { next(err) }

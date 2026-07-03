@@ -8,6 +8,7 @@ import { selectUser } from '@/store/slices/authSlice'
 import { DAY_NAMES, formatCurrency } from '@/lib/utils'
 import ShopCard from '@/components/salesman/ShopCard'
 import OrderModal from '@/components/salesman/OrderModal'
+import SkipShopModal from '@/components/salesman/SkipShopModal'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
 import { Map, ListOrdered, Calendar, CheckCircle, ShoppingCart, AlertCircle, ChevronLeft, ChevronRight } from 'lucide-react'
 
@@ -29,6 +30,7 @@ export default function SalesmanPage() {
   const [view, setView] = useState('split') // 'split' | 'map' | 'list'
   const [activeShop, setActiveShop] = useState(null)
   const [orderModal, setOrderModal] = useState(null)
+  const [skipModal, setSkipModal] = useState(null)
   const [routeIdx, setRouteIdx] = useState(0)
 
   const todayName = DAY_NAMES[new Date().getDay()]
@@ -43,12 +45,17 @@ export default function SalesmanPage() {
   const currentRoute = routes[routeIdx] || null
   const shops = currentRoute?.routeShops || []
   const orderedCount = shops.filter(rs => rs.todayOrder).length
+  const skippedCount = shops.filter(rs => rs.todaySkip && !rs.todayOrder).length
   const totalRouteValue = shops.filter(rs => rs.todayOrder)
     .reduce((s, rs) => s + Number(rs.todayOrder.totalAmount), 0)
 
   const handleShopClick = (routeShop) => {
     setActiveShop(routeShop)
     setOrderModal(routeShop)
+  }
+
+  const handleSkip = (routeShop) => {
+    setSkipModal(routeShop)
   }
 
   if (isLoading) return <LoadingSpinner text="Loading your route..." />
@@ -104,6 +111,12 @@ export default function SalesmanPage() {
               <div className="font-bold text-emerald-600">{orderedCount}/{shops.length}</div>
               <div className="text-xs text-gray-400">Visited</div>
             </div>
+            {skippedCount > 0 && (
+              <div className="text-center">
+                <div className="font-bold text-orange-500">{skippedCount}</div>
+                <div className="text-xs text-gray-400">Skipped</div>
+              </div>
+            )}
             <div className="text-center">
               <div className="font-bold text-indigo-600">{formatCurrency(totalRouteValue)}</div>
               <div className="text-xs text-gray-400">Booked</div>
@@ -161,19 +174,32 @@ export default function SalesmanPage() {
                   index={idx}
                   isActive={activeShop?.shopId === rs.shopId}
                   onClick={() => handleShopClick(rs)}
+                  onSkip={handleSkip}
                 />
               ))}
             </div>
 
             {/* Summary footer */}
-            {orderedCount > 0 && (
-              <div className="border-t border-gray-100 p-4 bg-emerald-50 flex-shrink-0">
+            {(orderedCount > 0 || skippedCount > 0) && (
+              <div className="border-t border-gray-100 p-4 bg-gray-50 flex-shrink-0">
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <CheckCircle className="w-4 h-4 text-emerald-500" />
-                    <span className="text-sm font-semibold text-emerald-700">{orderedCount} orders booked</span>
+                  <div className="flex items-center gap-3">
+                    {orderedCount > 0 && (
+                      <div className="flex items-center gap-1.5">
+                        <CheckCircle className="w-4 h-4 text-emerald-500" />
+                        <span className="text-sm font-semibold text-emerald-700">{orderedCount} booked</span>
+                      </div>
+                    )}
+                    {skippedCount > 0 && (
+                      <div className="flex items-center gap-1.5">
+                        <ShoppingCart className="w-4 h-4 text-orange-400" />
+                        <span className="text-sm font-semibold text-orange-600">{skippedCount} skipped</span>
+                      </div>
+                    )}
                   </div>
-                  <span className="font-bold text-emerald-700">{formatCurrency(totalRouteValue)}</span>
+                  {orderedCount > 0 && (
+                    <span className="font-bold text-emerald-700">{formatCurrency(totalRouteValue)}</span>
+                  )}
                 </div>
               </div>
             )}
@@ -230,6 +256,15 @@ export default function SalesmanPage() {
         routeId={currentRoute?.id}
         open={!!orderModal}
         onClose={() => { setOrderModal(null); setActiveShop(null) }}
+        onSuccess={refetch}
+      />
+
+      {/* Skip shop modal — "Can't Visit Today" */}
+      <SkipShopModal
+        routeShop={skipModal}
+        routeId={currentRoute?.id}
+        open={!!skipModal}
+        onClose={() => setSkipModal(null)}
         onSuccess={refetch}
       />
     </div>
