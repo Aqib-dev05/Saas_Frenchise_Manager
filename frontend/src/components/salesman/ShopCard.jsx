@@ -134,7 +134,7 @@ export default function ShopCard({ routeShop, index, isActive, onClick, onSkip }
                 className="text-xs text-gray-400 hover:text-orange-600 hover:bg-orange-50 px-2.5 py-1 rounded-lg border border-gray-200 hover:border-orange-200 transition-all flex items-center gap-1.5"
               >
                 <Ban className="w-3 h-3" />
-                Can't Visit Today
+                {"Can't Visit Today"}
               </button>
             </div>
           )}
