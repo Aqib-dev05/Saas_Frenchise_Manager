@@ -40,7 +40,7 @@ export default function InvoicesPage() {
 
   return (
     <div className="space-y-5">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <h1 className="text-2xl font-bold text-gray-900">Invoices</h1>
         <button
           onClick={() => setConfirmClear(true)}
@@ -50,14 +50,15 @@ export default function InvoicesPage() {
           <Trash2 className="w-4 h-4" />Clear PDF History
         </button>
       </div>
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="card p-5"><p className="text-sm text-gray-500">Total Invoiced</p><p className="text-2xl font-bold text-gray-900 mt-1">{formatCurrency(totalInvoiced)}</p></div>
         <div className="card p-5"><p className="text-sm text-gray-500">Total Collected</p><p className="text-2xl font-bold text-emerald-600 mt-1">{formatCurrency(totalPaid)}</p></div>
         <div className="card p-5"><p className="text-sm text-gray-500">Outstanding</p><p className="text-2xl font-bold text-orange-600 mt-1">{formatCurrency(totalDue)}</p></div>
       </div>
       {isLoading ? <LoadingSpinner /> : (
         <div className="card overflow-hidden">
-          <table className="w-full text-sm">
+        <div className="table-scroll">
+          <table className="w-full text-sm min-w-[920px]">
             <thead><tr className="bg-gray-50 border-b border-gray-100 text-xs text-gray-500 uppercase font-semibold">
               <th className="text-left px-4 py-3">Invoice No</th>
               <th className="text-left px-4 py-3">Order No</th>
@@ -107,6 +108,7 @@ export default function InvoicesPage() {
               {orders.length === 0 && <tr><td colSpan={10} className="text-center text-gray-400 py-12">No invoices yet</td></tr>}
             </tbody>
           </table>
+        </div>
         </div>
       )}
 

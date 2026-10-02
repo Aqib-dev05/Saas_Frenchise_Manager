@@ -37,11 +37,11 @@ function ShopForm({ defaultValues, onSubmit, loading }) {
         />
         <input type="hidden" {...register('ownerPhoto')} />
       </div>
-      <div className="grid grid-cols-2 gap-4">
-        <div className="col-span-2"><label className="label">Shop Name *</label><input className="input" {...register('name', { required: true })} /></div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="sm:col-span-2"><label className="label">Shop Name *</label><input className="input" {...register('name', { required: true })} /></div>
         <div><label className="label">Owner Name *</label><input className="input" {...register('ownerName', { required: true })} /></div>
         <div><label className="label">Phone *</label><input className="input" {...register('phone', { required: true })} /></div>
-        <div className="col-span-2"><label className="label">Address *</label><input className="input" {...register('address', { required: true })} /></div>
+        <div className="sm:col-span-2"><label className="label">Address *</label><input className="input" {...register('address', { required: true })} /></div>
         <div><label className="label">City</label><input className="input" {...register('city')} /></div>
         <div><label className="label">Shop Type</label>
           <select className="input" {...register('type')}>
@@ -159,7 +159,7 @@ export default function ShopsPage() {
 
   return (
     <div className="space-y-5">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <div><h1 className="text-2xl font-bold text-gray-900">Shops</h1><p className="text-gray-500 text-sm">{shops.length} registered shops</p></div>
         <button onClick={() => setModal('create')} className="btn-primary flex items-center gap-2"><Plus className="w-4 h-4" />Add Shop</button>
       </div>
@@ -194,8 +194,8 @@ export default function ShopsPage() {
         </div>
       )}
 
-      <div className="flex gap-3">
-        <div className="relative flex-1 max-w-xs">
+      <div className="flex flex-wrap gap-3">
+        <div className="relative flex-1 min-w-[180px] max-w-xs">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
           <input className="input pl-9" placeholder="Search shops..." value={search} onChange={e => setSearch(e.target.value)} />
         </div>
@@ -268,7 +268,7 @@ export default function ShopsPage() {
       <Modal open={!!viewModal} onClose={() => setViewModal(null)} title={viewModal?.name} size="lg">
         {viewModal && (
           <div className="space-y-5">
-            <div className="grid grid-cols-2 gap-4 text-sm">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
               <div className="bg-gray-50 rounded-xl p-4"><p className="text-gray-500 text-xs mb-1">Balance Due</p><p className="font-bold text-orange-600 text-xl">{formatCurrency(viewModal.balance)}</p></div>
               <div className="bg-gray-50 rounded-xl p-4"><p className="text-gray-500 text-xs mb-1">Credit Limit</p><p className="font-bold text-gray-900 text-xl">{formatCurrency(viewModal.creditLimit)}</p></div>
             </div>
@@ -403,7 +403,7 @@ export default function ShopsPage() {
             </div>
 
             {/* Code + Password side by side */}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <p className="text-xs font-semibold text-gray-400 uppercase mb-1.5">Portal Code</p>
                 <CredentialField label="" value={revealedCreds.code} />

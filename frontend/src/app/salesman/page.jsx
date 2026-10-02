@@ -84,7 +84,7 @@ export default function SalesmanPage() {
   return (
     <div className="h-full flex flex-col">
       {/* Top bar */}
-      <div className="bg-white border-b border-gray-100 px-6 py-4 flex items-center justify-between flex-shrink-0">
+      <div className="bg-white border-b border-gray-100 px-4 sm:px-6 py-3 sm:py-4 flex flex-wrap items-center justify-between gap-3 flex-shrink-0">
         <div>
           <div className="flex items-center gap-2 mb-0.5">
             <h1 className="text-xl font-bold text-gray-900">{currentRoute?.name}</h1>
@@ -93,7 +93,7 @@ export default function SalesmanPage() {
           <p className="text-sm text-gray-400">{todayDate}</p>
         </div>
 
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3 sm:gap-4 flex-wrap">
           {/* Route switcher if multiple */}
           {routes.length > 1 && (
             <div className="flex items-center gap-2">
@@ -148,11 +148,11 @@ export default function SalesmanPage() {
       </div>
 
       {/* Main content area */}
-      <div className="flex-1 overflow-hidden flex">
+      <div className="flex-1 overflow-hidden flex flex-col lg:flex-row">
 
         {/* Shop list panel */}
         {(view === 'list' || view === 'split') && (
-          <div className={`${view === 'split' ? 'w-96' : 'w-full'} flex flex-col border-r border-gray-100 bg-white overflow-hidden`}>
+          <div className={`${view === 'split' ? 'w-full lg:w-96 h-1/2 lg:h-full' : 'w-full h-full'} flex flex-col border-b lg:border-b-0 lg:border-r border-gray-100 bg-white overflow-hidden`}>
             {/* List header */}
             <div className="px-4 py-3 bg-gray-50 border-b border-gray-100 flex-shrink-0">
               <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
@@ -208,7 +208,7 @@ export default function SalesmanPage() {
 
         {/* Map panel */}
         {(view === 'map' || view === 'split') && (
-          <div className={`${view === 'split' ? 'flex-1' : 'w-full'} relative overflow-hidden`}>
+          <div className={`${view === 'split' ? 'w-full h-1/2 lg:h-full lg:flex-1' : 'w-full h-full'} relative overflow-hidden`}>
             <div className="absolute inset-0 p-3">
               <RouteMap
                 shops={shops}

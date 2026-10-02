@@ -26,8 +26,8 @@ function ProductForm({ defaultValues, onSubmit, loading }) {
         />
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
-        <div className="col-span-2"><label className="label">Product Name *</label>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="sm:col-span-2"><label className="label">Product Name *</label>
           <input className="input" {...register('name', { required: true })} />{errors.name && <p className="text-red-500 text-xs mt-1">Required</p>}</div>
         <div><label className="label">SKU *</label><input className="input" {...register('sku', { required: true })} /></div>
         <div><label className="label">Category *</label><input className="input" {...register('category', { required: true })} /></div>
@@ -40,7 +40,7 @@ function ProductForm({ defaultValues, onSubmit, loading }) {
             {['piece','bottle','pack','bag','box','kg','liter','dozen'].map(u => <option key={u} value={u}>{u}</option>)}
           </select>
         </div>
-        <div className="col-span-2"><label className="label">Description</label><textarea className="input resize-none" rows={2} {...register('description')} /></div>
+        <div className="sm:col-span-2"><label className="label">Description</label><textarea className="input resize-none" rows={2} {...register('description')} /></div>
       </div>
       <div className="flex gap-3 pt-2">
         <button type="submit" disabled={loading} className="btn-primary flex-1">{loading ? 'Saving...' : 'Save Product'}</button>
@@ -80,7 +80,7 @@ export default function ProductsPage() {
 
   return (
     <div className="space-y-5">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <div><h1 className="text-2xl font-bold text-gray-900">Products</h1><p className="text-gray-500 text-sm">{products.length} products</p></div>
         <button onClick={() => setModal('create')} className="btn-primary flex items-center gap-2"><Plus className="w-4 h-4" />Add Product</button>
       </div>
@@ -92,7 +92,8 @@ export default function ProductsPage() {
 
       {isLoading ? <LoadingSpinner /> : (
         <div className="card overflow-hidden">
-          <table className="w-full text-sm">
+        <div className="table-scroll">
+          <table className="w-full text-sm min-w-[680px]">
             <thead><tr className="bg-gray-50 border-b border-gray-100 text-xs text-gray-500 uppercase font-semibold">
               <th className="text-left px-4 py-3">Product</th>
               <th className="text-left px-4 py-3">SKU</th>
@@ -137,6 +138,7 @@ export default function ProductsPage() {
               ))}
             </tbody>
           </table>
+        </div>
         </div>
       )}
 

@@ -75,7 +75,8 @@ export default function AuditLogPage() {
 
       {isLoading ? <LoadingSpinner /> : (
         <div className="card overflow-hidden">
-          <table className="w-full text-sm">
+        <div className="table-scroll">
+          <table className="w-full text-sm min-w-[760px]">
             <thead className="bg-gray-50 text-gray-500 text-xs uppercase">
               <tr>
                 <th className="text-left px-4 py-3">When</th>
@@ -125,9 +126,10 @@ export default function AuditLogPage() {
               {data?.logs.length === 0 && <tr><td colSpan={6} className="text-center text-gray-400 py-12">No activity matches these filters</td></tr>}
             </tbody>
           </table>
+        </div>
 
           {data && data.pages > 1 && (
-            <div className="flex items-center justify-between px-4 py-3 border-t border-gray-100 text-sm">
+            <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 border-t border-gray-100 text-sm">
               <span className="text-gray-500">Page {data.page} of {data.pages} · {data.total} entries</span>
               <div className="flex gap-2">
                 <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page <= 1} className="btn-secondary px-3 py-1.5 disabled:opacity-40">Prev</button>

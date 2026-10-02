@@ -75,7 +75,7 @@ function ResetPasswordForm() {
           <p className="text-gray-500 mt-1 text-sm">We sent a 6-digit code to your email. It expires in 10 minutes.</p>
         </div>
 
-        <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-8">
+        <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-6 sm:p-8">
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
             <div>
               <label className="label">Email address</label>

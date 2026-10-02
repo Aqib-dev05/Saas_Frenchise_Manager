@@ -283,8 +283,8 @@ export default function DeliveryPage() {
   return (
     <div className="h-full flex flex-col">
       {/* Header */}
-      <div className="bg-white border-b border-gray-100 px-6 py-4 flex-shrink-0">
-        <div className="flex items-center justify-between flex-wrap gap-4">
+      <div className="bg-white border-b border-gray-100 px-4 sm:px-6 py-3 sm:py-4 flex-shrink-0">
+        <div className="flex items-center justify-between flex-wrap gap-3 sm:gap-4">
           <div>
             <h1 className="text-xl font-bold text-gray-900">Delivery Dashboard</h1>
             <p className="text-sm text-gray-400 mt-0.5">{todayDate}</p>
@@ -364,7 +364,7 @@ export default function DeliveryPage() {
 
       {/* List view */}
       {view === 'list' && orders.length > 0 && (
-        <div className="flex-1 overflow-y-auto p-5 space-y-4">
+        <div className="flex-1 overflow-y-auto p-3 sm:p-5 space-y-4">
           {mergedDeliveries.map(delivery => {
             const order = delivery.order
             if (delivery.isRealDelivery) {

@@ -59,7 +59,7 @@ export default function UsersPage() {
 
   return (
     <div className="space-y-5">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <div><h1 className="text-2xl font-bold text-gray-900">Team</h1><p className="text-gray-500 text-sm">{users.filter(u=>u.isActive).length} active members</p></div>
         <button onClick={() => setModal('create')} className="btn-primary flex items-center gap-2"><Plus className="w-4 h-4" />Add Member</button>
       </div>

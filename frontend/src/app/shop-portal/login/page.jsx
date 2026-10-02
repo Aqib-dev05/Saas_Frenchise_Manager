@@ -41,7 +41,7 @@ export default function ShopPortalLoginPage() {
           <p className="text-gray-500 mt-1 text-sm">View your orders, payments &amp; balance</p>
         </div>
 
-        <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-8">
+        <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-6 sm:p-8">
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
             <div>
               <label className="label">Portal Code</label>

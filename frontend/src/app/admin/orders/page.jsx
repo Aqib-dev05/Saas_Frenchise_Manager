@@ -73,7 +73,8 @@ export default function OrdersPage() {
 
       {isLoading ? <LoadingSpinner /> : (
         <div className="card overflow-hidden">
-          <table className="w-full text-sm">
+        <div className="table-scroll">
+          <table className="w-full text-sm min-w-[720px]">
             <thead><tr className="bg-gray-50 border-b border-gray-100 text-xs text-gray-500 uppercase font-semibold">
               <th className="text-left px-4 py-3">Order No</th>
               <th className="text-left px-4 py-3">Shop</th>
@@ -126,12 +127,13 @@ export default function OrdersPage() {
             </tbody>
           </table>
         </div>
+        </div>
       )}
 
       <Modal open={!!viewOrder} onClose={() => setViewOrder(null)} title={`Order: ${viewOrder?.orderNo}`} size="lg">
         {viewOrder && (
           <div className="space-y-5">
-            <div className="grid grid-cols-2 gap-4 text-sm">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
               <div className="bg-gray-50 rounded-xl p-4 space-y-2">
                 <p><span className="text-gray-500">Shop:</span> <span className="font-medium ml-1">{viewOrder.shop?.name}</span></p>
                 <p><span className="text-gray-500">Owner:</span> <span className="font-medium ml-1">{viewOrder.shop?.ownerName}</span></p>
@@ -145,7 +147,8 @@ export default function OrdersPage() {
             </div>
             <div>
               <h3 className="font-semibold text-gray-900 mb-3">Order Items</h3>
-              <table className="w-full text-sm">
+              <div className="table-scroll">
+              <table className="w-full text-sm min-w-[420px]">
                 <thead><tr className="text-xs text-gray-500 border-b border-gray-100">
                   <th className="text-left pb-2">Product</th><th className="text-right pb-2">Qty</th><th className="text-right pb-2">Price</th><th className="text-right pb-2">Subtotal</th>
                 </tr></thead>
@@ -164,6 +167,7 @@ export default function OrdersPage() {
                   <td className="pt-3 text-right font-bold text-indigo-600 text-base">{formatCurrency(viewOrder.totalAmount)}</td>
                 </tr></tfoot>
               </table>
+              </div>
             </div>
             <div className="flex gap-2 flex-wrap border-t pt-4">
               {/* Bill — always available */}

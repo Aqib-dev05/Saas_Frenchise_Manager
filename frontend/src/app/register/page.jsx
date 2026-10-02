@@ -59,7 +59,7 @@ function RegisterForm() {
           </div>
         )}
 
-        <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-8">
+        <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-6 sm:p-8">
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
             <div>
               <label className="label">Company / Franchise Name <span className="text-red-500">*</span></label>
@@ -73,7 +73,7 @@ function RegisterForm() {
                 {...register('adminName', { required: 'Your name is required' })} />
               {errors.adminName && <p className="text-red-500 text-xs mt-1">{errors.adminName.message}</p>}
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="label">Email <span className="text-red-500">*</span></label>
                 <input className="input" type="email" placeholder="admin@company.com"

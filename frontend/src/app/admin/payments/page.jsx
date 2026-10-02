@@ -29,14 +29,15 @@ export default function PaymentsPage() {
 
   return (
     <div className="space-y-5">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <div><h1 className="text-2xl font-bold text-gray-900">Payments</h1><p className="text-gray-500 text-sm">Total received: {formatCurrency(totalReceived)}</p></div>
         <button onClick={() => setModal(true)} className="btn-primary flex items-center gap-2"><Plus className="w-4 h-4" />Record Payment</button>
       </div>
 
       {isLoading ? <LoadingSpinner /> : (
         <div className="card overflow-hidden">
-          <table className="w-full text-sm">
+        <div className="table-scroll">
+          <table className="w-full text-sm min-w-[640px]">
             <thead><tr className="bg-gray-50 border-b border-gray-100 text-xs text-gray-500 uppercase font-semibold">
               <th className="text-left px-4 py-3">Shop</th>
               <th className="text-left px-4 py-3">Owner</th>
@@ -59,6 +60,7 @@ export default function PaymentsPage() {
               {payments.length === 0 && <tr><td colSpan={6} className="text-center text-gray-400 py-12">No payments recorded yet</td></tr>}
             </tbody>
           </table>
+        </div>
         </div>
       )}
 

@@ -32,7 +32,7 @@ export default function AdminDashboard() {
         <StatCard title="Total Shops" value={stats?.totalShops ?? 0} subtitle={`${stats?.activeRoutes ?? 0} active routes`} icon={Store} color="purple" />
       </div>
 
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <StatCard title="Credit Outstanding" value={formatCurrency(stats?.totalCreditOutstanding)} subtitle="Total due from shops" icon={AlertTriangle} color="orange" />
         <StatCard title="Low Stock Items" value={stats?.lowStockCount ?? 0} subtitle="Needs restocking" icon={Package} color="red" />
         <StatCard title="Products" value={stats?.totalProducts ?? 0} subtitle="Active products" icon={Package} color="blue" />
@@ -58,7 +58,7 @@ export default function AdminDashboard() {
         </ResponsiveContainer>
       </div>
 
-      <div className="grid grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Low Stock */}
         <div className="card p-6">
           <h2 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">

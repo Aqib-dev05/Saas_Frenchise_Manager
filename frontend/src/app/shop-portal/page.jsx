@@ -396,7 +396,8 @@ function PaymentsTab() {
       {payments.length === 0 ? (
         <div className="text-center py-12 text-gray-400">Koi payments nahi</div>
       ) : (
-        <table className="w-full text-sm">
+        <div className="table-scroll">
+        <table className="w-full text-sm min-w-[480px]">
           <thead>
             <tr className="bg-gray-50">
               <th className="px-4 py-3 text-left text-xs font-semibold text-gray-400 uppercase">Date</th>
@@ -432,6 +433,7 @@ function PaymentsTab() {
             </tr>
           </tfoot>
         </table>
+        </div>
       )}
     </div>
   )

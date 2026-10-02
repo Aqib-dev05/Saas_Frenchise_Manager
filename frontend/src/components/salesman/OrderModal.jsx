@@ -191,8 +191,8 @@ export default function OrderModal({ routeShop, routeId, open, onClose, onSucces
                 </button>
               </div>
 
-              {/* Column headers */}
-              <div className="flex gap-2 text-[11px] text-gray-400 font-medium px-0.5">
+              {/* Column headers — desktop only; mobile rows are labeled inline via placeholders */}
+              <div className="hidden sm:flex gap-2 text-[11px] text-gray-400 font-medium px-0.5">
                 <div className="flex-1">Product</div>
                 <div className="w-28">Rate (Rs.)</div>
                 <div className="w-20">Qty</div>
@@ -213,9 +213,9 @@ export default function OrderModal({ routeShop, routeId, open, onClose, onSucces
 
                 return (
                   <div key={field.id} className="space-y-1">
-                    <div className="flex gap-2 items-start">
+                    <div className="flex flex-wrap gap-2 items-start">
                       {/* Product dropdown */}
-                      <div className="flex-1">
+                      <div className="w-full sm:flex-1">
                         <select
                           className="input text-sm"
                           {...productRegisterRest}

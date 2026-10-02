@@ -33,15 +33,16 @@ export default function LandingPage() {
       <nav className="fixed top-0 w-full bg-white/80 backdrop-blur border-b border-gray-100 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center">
+            <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center flex-shrink-0">
               <Package className="w-5 h-5 text-white" />
             </div>
-            <span className="font-bold text-gray-900 text-lg">FranchiseManager</span>
+            <span className="font-bold text-gray-900 text-lg hidden sm:inline">FranchiseManager</span>
           </div>
-          <div className="flex items-center gap-3">
-            <Link href="/login" className="text-sm font-medium text-gray-600 hover:text-gray-900 px-4 py-2">Login</Link>
-            <Link href="/register" className="text-sm font-medium bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg transition-colors">
-              Start Free Trial
+          <div className="flex items-center gap-2 sm:gap-3">
+            <Link href="/login" className="text-sm font-medium text-gray-600 hover:text-gray-900 px-2.5 sm:px-4 py-2">Login</Link>
+            <Link href="/register" className="text-sm font-medium bg-indigo-600 hover:bg-indigo-700 text-white px-3 sm:px-4 py-2 rounded-lg transition-colors whitespace-nowrap">
+              <span className="sm:hidden">Start Trial</span>
+              <span className="hidden sm:inline">Start Free Trial</span>
             </Link>
           </div>
         </div>
@@ -76,9 +77,9 @@ export default function LandingPage() {
             <div className="w-3 h-3 rounded-full bg-red-400" />
             <div className="w-3 h-3 rounded-full bg-yellow-400" />
             <div className="w-3 h-3 rounded-full bg-green-400" />
-            <span className="ml-2 text-slate-400 text-xs font-mono">franchise-manager.app/admin</span>
+            <span className="ml-2 text-slate-400 text-xs font-mono truncate">franchise-manager.app/admin</span>
           </div>
-          <div className="grid grid-cols-4 gap-4 p-6 bg-slate-50">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 p-4 sm:p-6 bg-slate-50">
             {[['Today Revenue','Rs. 48,200','↑ 12%','green'],['Orders','34','↑ 8%','blue'],['Pending','6','','yellow'],['Low Stock','3','!','red']].map(([l,v,c,color]) => (
               <div key={l} className="bg-white rounded-xl p-4 border border-gray-100">
                 <p className="text-xs text-gray-500 font-medium">{l}</p>
