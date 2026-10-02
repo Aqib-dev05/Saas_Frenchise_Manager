@@ -16,6 +16,9 @@ CREATE TYPE "DeliveryStatus" AS ENUM ('PENDING', 'IN_TRANSIT', 'DELIVERED', 'FAI
 -- CreateEnum
 CREATE TYPE "SubscriptionStatus" AS ENUM ('TRIALING', 'ACTIVE', 'PAST_DUE', 'CANCELED', 'PAUSED');
 
+-- CreateEnum
+CREATE TYPE "SkipReason" AS ENUM ('SHOP_CLOSED', 'OWNER_UNAVAILABLE', 'PAYMENT_DISPUTE', 'OTHER');
+
 -- CreateTable
 CREATE TABLE "Organization" (
     "id" TEXT NOT NULL,
@@ -85,7 +88,12 @@ CREATE TABLE "User" (
     "password" TEXT NOT NULL,
     "role" "Role" NOT NULL DEFAULT 'SALESMAN',
     "phone" TEXT,
+    "avatar" TEXT,
     "isActive" BOOLEAN NOT NULL DEFAULT true,
+    "resetOtpHash" TEXT,
+    "resetOtpExpiresAt" TIMESTAMP(3),
+    "resetOtpAttempts" INTEGER NOT NULL DEFAULT 0,
+    "resetOtpRequestedAt" TIMESTAMP(3),
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
@@ -105,6 +113,7 @@ CREATE TABLE "Product" (
     "stock" INTEGER NOT NULL DEFAULT 0,
     "minStock" INTEGER NOT NULL DEFAULT 10,
     "unit" TEXT NOT NULL DEFAULT 'piece',
+    "images" TEXT[] DEFAULT ARRAY[]::TEXT[],
     "isActive" BOOLEAN NOT NULL DEFAULT true,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
@@ -126,8 +135,13 @@ CREATE TABLE "Shop" (
     "type" "ShopType" NOT NULL DEFAULT 'RETAIL',
     "balance" DECIMAL(10,2) NOT NULL DEFAULT 0,
     "creditLimit" DECIMAL(10,2) NOT NULL DEFAULT 0,
+    "ownerPhoto" TEXT,
     "isActive" BOOLEAN NOT NULL DEFAULT true,
     "notes" TEXT,
+    "portalEnabled" BOOLEAN NOT NULL DEFAULT false,
+    "portalCode" TEXT,
+    "portalPasswordHash" TEXT,
+    "portalLastLoginAt" TIMESTAMP(3),
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
@@ -213,6 +227,9 @@ CREATE TABLE "Invoice" (
     "paid" DECIMAL(10,2) NOT NULL DEFAULT 0,
     "dueDate" TIMESTAMP(3),
     "isPaid" BOOLEAN NOT NULL DEFAULT false,
+    "pdfUrl" TEXT,
+    "pdfPublicId" TEXT,
+    "pdfGeneratedAt" TIMESTAMP(3),
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
@@ -233,6 +250,41 @@ CREATE TABLE "Payment" (
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "Payment_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "AuditLog" (
+    "id" TEXT NOT NULL,
+    "organizationId" TEXT NOT NULL,
+    "userId" TEXT,
+    "userName" TEXT,
+    "userRole" "Role",
+    "action" TEXT NOT NULL,
+    "resource" TEXT NOT NULL,
+    "resourceId" TEXT,
+    "description" TEXT,
+    "changes" JSONB,
+    "ipAddress" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "AuditLog_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "SkippedVisit" (
+    "id" TEXT NOT NULL,
+    "organizationId" TEXT NOT NULL,
+    "shopId" TEXT NOT NULL,
+    "salesmanId" TEXT NOT NULL,
+    "routeId" TEXT,
+    "reason" "SkipReason" NOT NULL,
+    "notes" TEXT,
+    "skippedDate" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "isResolved" BOOLEAN NOT NULL DEFAULT false,
+    "resolvedAt" TIMESTAMP(3),
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "SkippedVisit_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateIndex
@@ -272,6 +324,9 @@ CREATE INDEX "Product_organizationId_idx" ON "Product"("organizationId");
 CREATE UNIQUE INDEX "Product_organizationId_sku_key" ON "Product"("organizationId", "sku");
 
 -- CreateIndex
+CREATE UNIQUE INDEX "Shop_portalCode_key" ON "Shop"("portalCode");
+
+-- CreateIndex
 CREATE INDEX "Shop_organizationId_idx" ON "Shop"("organizationId");
 
 -- CreateIndex
@@ -303,6 +358,24 @@ CREATE UNIQUE INDEX "Invoice_orderId_key" ON "Invoice"("orderId");
 
 -- CreateIndex
 CREATE INDEX "Payment_organizationId_idx" ON "Payment"("organizationId");
+
+-- CreateIndex
+CREATE INDEX "AuditLog_organizationId_createdAt_idx" ON "AuditLog"("organizationId", "createdAt");
+
+-- CreateIndex
+CREATE INDEX "AuditLog_organizationId_resource_idx" ON "AuditLog"("organizationId", "resource");
+
+-- CreateIndex
+CREATE INDEX "AuditLog_organizationId_userId_idx" ON "AuditLog"("organizationId", "userId");
+
+-- CreateIndex
+CREATE INDEX "SkippedVisit_organizationId_isResolved_idx" ON "SkippedVisit"("organizationId", "isResolved");
+
+-- CreateIndex
+CREATE INDEX "SkippedVisit_organizationId_skippedDate_idx" ON "SkippedVisit"("organizationId", "skippedDate");
+
+-- CreateIndex
+CREATE INDEX "SkippedVisit_shopId_idx" ON "SkippedVisit"("shopId");
 
 -- AddForeignKey
 ALTER TABLE "Subscription" ADD CONSTRAINT "Subscription_organizationId_fkey" FOREIGN KEY ("organizationId") REFERENCES "Organization"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
@@ -363,3 +436,15 @@ ALTER TABLE "Payment" ADD CONSTRAINT "Payment_organizationId_fkey" FOREIGN KEY (
 
 -- AddForeignKey
 ALTER TABLE "Payment" ADD CONSTRAINT "Payment_shopId_fkey" FOREIGN KEY ("shopId") REFERENCES "Shop"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "SkippedVisit" ADD CONSTRAINT "SkippedVisit_organizationId_fkey" FOREIGN KEY ("organizationId") REFERENCES "Organization"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "SkippedVisit" ADD CONSTRAINT "SkippedVisit_shopId_fkey" FOREIGN KEY ("shopId") REFERENCES "Shop"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "SkippedVisit" ADD CONSTRAINT "SkippedVisit_salesmanId_fkey" FOREIGN KEY ("salesmanId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "SkippedVisit" ADD CONSTRAINT "SkippedVisit_routeId_fkey" FOREIGN KEY ("routeId") REFERENCES "Route"("id") ON DELETE SET NULL ON UPDATE CASCADE;

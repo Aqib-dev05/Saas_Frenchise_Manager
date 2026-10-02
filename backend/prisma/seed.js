@@ -56,7 +56,7 @@ async function main() {
 
   // Trial subscription for demo org
   const trialEnd = new Date()
-  trialEnd.setDate(trialEnd.getDate() + 14)
+  trialEnd.setDate(trialEnd.getDate() + 140)
   await prisma.subscription.upsert({
     where: { organizationId: demoOrg.id },
     update: {},
